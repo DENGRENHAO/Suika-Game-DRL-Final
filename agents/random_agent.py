@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # Use render_mode="human" to visualize, or None for no rendering
     env = SuikaEnv(render_mode="human") 
     
-    obs = env.reset()
+    obs, info = env.reset()
     agent = RandomAgent(env.action_space)
     
     done = False

@@ -59,5 +59,24 @@ options:
   --save_gif            Save frames as GIF for levels 3 and 4
 ```
 
+## Auto Evaluation
+
++ The project includes an automatic evaluation script evaluate.py located in the root directory. This script can discover and evaluate any agent that inherits from agents.base_agent.Agent. 
+
+### Usage 
+
++ Run the script from the project root directory:
+  ```bash
+  python evaluate.py
+  ```
+
+  Options:
+
+  --agents AGENT_NAME: Specify one or more agent class names to evaluate (e.g., RandomAgent MyCustomAgent). If not set, all discoverable agents in the agents directory are evaluated. 
+  
+  --episodes NUM_EPISODES: Number of episodes to run for each agent (default: 20). 
+  
+  --max_steps MAX_STEPS_PER_EPISODE: Maximum number of steps per episode before it's considered terminated (default: 1500).
+
 ## References
 - [Suika Environment by Ole-Batting](https://github.com/Ole-Batting/suika/tree/master)
