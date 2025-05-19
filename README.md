@@ -1,6 +1,7 @@
 # Suika Game - DRL Final Project
 
 ## Pre-requisites
+- python version: 3.12.0
 ```bash
 pip install -r requirements.txt
 ```
