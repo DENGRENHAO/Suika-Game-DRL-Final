@@ -1,5 +1,5 @@
-pygame
-pymunk
-gymnasium
-numpy
-pillow
+pygame==2.6.1
+pymunk==6.11.1
+gymnasium==1.1.1
+numpy==2.2.5
+pillow==11.2.1
