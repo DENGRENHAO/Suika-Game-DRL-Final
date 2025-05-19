@@ -11,7 +11,7 @@ import numpy as np
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Run Suika game with specified learning level.')
-    parser.add_argument('--level', type=int, default=1, choices=[1, 2, 3, 4],
+    parser.add_argument('--level', type=int, default=3, choices=[1, 2, 3, 4],
                         help='Learning level (1-4) (default: 1)')
     parser.add_argument('--fps', type=int, default=120,
                         help='Frames per second for physics simulation (default: 120)')
