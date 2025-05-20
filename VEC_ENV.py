@@ -8,21 +8,41 @@ from tqdm import tqdm
 import numpy as np
 
 # register_envs()
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(description='Run Suika game with specified learning level.')
-    parser.add_argument('--level', type=int, default=3, choices=[1, 2, 3, 4],
-                        help='Learning level (1-4) (default: 1)')
-    parser.add_argument('--fps', type=int, default=120,
-                        help='Frames per second for physics simulation (default: 120)')
-    parser.add_argument('--render', action='store_true', default=False, 
-                        help='Enable rendering')
-    parser.add_argument('--render_fps', type=int, default=60,
-                        help='Frames per second for rendering with pygame (default: 60)')
-    parser.add_argument('--save_gif', action='store_true',
-                        help='Save frames as GIF for levels 3 and 4')
-    parser.add_argument('--num_frames', type=int, default=4,
-                        help='Number of intermediate frames to capture (default: 4)')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run Suika game with specified learning level."
+    )
+    parser.add_argument(
+        "--level",
+        type=int,
+        default=3,
+        choices=[1, 2, 3, 4],
+        help="Learning level (1-4) (default: 1)",
+    )
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=120,
+        help="Frames per second for physics simulation (default: 120)",
+    )
+    parser.add_argument(
+        "--render", action="store_true", default=False, help="Enable rendering"
+    )
+    parser.add_argument(
+        "--render_fps",
+        type=int,
+        default=60,
+        help="Frames per second for rendering with pygame (default: 60)",
+    )
+    parser.add_argument(
+        "--save_gif", action="store_true", help="Save frames as GIF for levels 3 and 4"
+    )
+    parser.add_argument(
+        "--num_frames",
+        type=int,
+        default=4,
+        help="Number of intermediate frames to capture (default: 4)",
+    )
     args = parser.parse_args()
 
     # Create environment based on level
@@ -30,11 +50,18 @@ if __name__ == '__main__':
     render_mode = "human" if args.render else None
 
     N = 16
-    vec_env = SubprocVecEnv([
-        lambda: gym.make(game_id, render_mode=None, render_fps=args.render_fps, fps=args.fps,
-                  num_frames=args.num_frames)
-        for _ in range(N)
-    ])
+    vec_env = SubprocVecEnv(
+        [
+            lambda: gym.make(
+                game_id,
+                render_mode=None,
+                render_fps=args.render_fps,
+                fps=args.fps,
+                num_frames=args.num_frames,
+            )
+            for _ in range(N)
+        ]
+    )
 
     current_time = time.time()
     terminated = False
@@ -45,7 +72,6 @@ if __name__ == '__main__':
     obs, info = vec_env.reset()
 
     while i < episode:
-
         action = np.array([vec_env.action_space.sample() for _ in range(N)])
 
         obs, reward, terminated, info = vec_env.step(action)
@@ -54,7 +80,6 @@ if __name__ == '__main__':
             if done:
                 i += 1
                 progress_bar.update(1)
-
 
     print(f"Elapsed time: {(time.time() - current_time):.2f} seconds")
 

@@ -6,12 +6,14 @@ if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 from suika_gym import SuikaEnv
-from agents.base_agent import Agent # Import the base Agent class
+from agents.base_agent import Agent  # Import the base Agent class
+
 
 class RandomAgent(Agent):
     """
     An agent that selects actions randomly from the action space.
     """
+
     def __init__(self, action_space):
         """
         Initializes the RandomAgent.
@@ -19,7 +21,7 @@ class RandomAgent(Agent):
         Args:
             action_space: The action space of the environment.
         """
-        super().__init__() # Call to base class constructor
+        super().__init__()  # Call to base class constructor
         self.action_space = action_space
 
     def select_action(self, obs):
@@ -34,15 +36,16 @@ class RandomAgent(Agent):
         """
         return self.action_space.sample()
 
+
 # The following block demonstrates how to run the RandomAgent.
 if __name__ == "__main__":
     print("Running RandomAgent example...")
     # Use render_mode="human" to visualize, or None for no rendering
-    env = SuikaEnv(render_mode="human") 
-    
+    env = SuikaEnv(render_mode="human")
+
     obs, info = env.reset()
     agent = RandomAgent(env.action_space)
-    
+
     done = False
     total_reward = 0
     episode_length = 0
@@ -57,5 +60,5 @@ if __name__ == "__main__":
     print(f"RandomAgent episode finished.")
     print(f"Total Reward: {total_reward}")
     print(f"Episode Length: {episode_length}")
-    
+
     env.close()
