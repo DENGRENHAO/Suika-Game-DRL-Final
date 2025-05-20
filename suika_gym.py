@@ -33,9 +33,10 @@ DENSITY = 0.001
 ELASTICITY = 0.1
 IMPULSE = 10000
 GRAVITY = 2000
-DAMPING = 0.8
 BIAS = 0.00001
 POINTS = [1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66]
+DAMPING = 0.4   # Lower to decrease the time it takes for space to be stable
+STABILITY_VELOCITY_THRESHOLD = 100  # Higher to decrease the time it takes for space to be stable
 
 # Environment IDs for the four different learning levels
 GAME_IDS = {
@@ -46,7 +47,7 @@ GAME_IDS = {
 }
 
 class SuikaEnv(gym.Env):
-    def __init__(self, render_mode=None, render_fps=60, fps=120, level=1):
+    def __init__(self, render_mode=None, render_fps=60, fps=120, level=1, num_frames=4):
         """
         Initialize the Suika game environment
         
@@ -58,6 +59,7 @@ class SuikaEnv(gym.Env):
                    2: Coordinate-size list without game engine access
                    3: Image with game engine access
                    4: Image without game engine access
+            num_frames: Number of intermediate frames to capture (default: 4)
         """
         self.SIZE = SIZE
         self.WIDTH = WIDTH
@@ -70,26 +72,25 @@ class SuikaEnv(gym.Env):
         self.BG_COLOR = BG_COLOR
         self.W_COLOR = W_COLOR
         self.COLORS = COLORS
-        self.FPS = fps
         self.RADII = RADII
         self.THICKNESS = THICKNESS
         self.DENSITY = DENSITY
         self.ELASTICITY = ELASTICITY
         self.IMPULSE = IMPULSE
         self.GRAVITY = GRAVITY
-        self.DAMPING = DAMPING
-        self.NEXT_DELAY = self.FPS
         self.BIAS = BIAS
         self.POINTS = POINTS
+        self.DAMPING = DAMPING
+        self.stability_velocity_threshold = STABILITY_VELOCITY_THRESHOLD
         self.render_fps = render_fps
-        self.fast_mode = False
+        self.FPS = fps
         self.level = level
+        self.num_frames = num_frames  # Number of intermediate frames to collect
         
         # Validate level
         if self.level not in [1, 2, 3, 4]:
             raise ValueError(f"Invalid level: {self.level}. Must be 1, 2, 3, or 4.")
         
-        self.cleaup_interval = 40
         self.render_interval = 4
         self.max_stability_steps = 20
         
@@ -132,17 +133,17 @@ class SuikaEnv(gym.Env):
         self.next_particle_x = self.WIDTH // 2
     
     def _setup_observation_space(self):
-        """Set up observation space based on level"""
+        """Set up observation space based on level and number of frames"""
         # If levels 1 or 2 (coordinate-size list)
         if self.level in [1, 2]:
             self.observation_space = spaces.Dict({
-                "grid": spaces.Box(low=0, high=11, shape=(self.grid_size[0], self.grid_size[1]), dtype=np.int8),
+                "grid": spaces.Box(low=0, high=11, shape=(self.grid_size[0], self.grid_size[1], self.num_frames), dtype=np.int8),
                 "next_fruit": spaces.Discrete(5)  # 0-4 for the next fruit types
             })
         # If levels 3 or 4 (image-based)
         else:
             self.observation_space = spaces.Dict({
-                "image": spaces.Box(low=0, high=255, shape=(self.image_size[1], self.image_size[0], 3), dtype=np.uint8),
+                "image": spaces.Box(low=0, high=255, shape=(self.image_size[1], self.image_size[0], 3, self.num_frames), dtype=np.uint8),
                 "next_fruit": spaces.Discrete(5)
             })
         
@@ -393,15 +394,33 @@ class SuikaEnv(gym.Env):
         self.next_particle_type = self.rng.integers(0, 5)
         self.next_particle_x = self.WIDTH // 2
         
-        # Get observation
-        observation = self._get_observation()
+        # Create initial observation with repeated frames
+        if self.level in [1, 2]:
+            empty_grid = np.zeros(self.grid_size, dtype=np.int8)
+            stacked_grids = np.stack([empty_grid] * self.num_frames, axis=2)
+            observation = {
+                "grid": stacked_grids,
+                "next_fruit": self.next_particle_type
+            }
+        else:
+            # Create an empty image
+            empty_image = np.zeros((self.image_size[1], self.image_size[0], 3), dtype=np.uint8)
+            if self.render_mode is not None:
+                # Use the actual rendered image instead of empty
+                empty_image = self._get_image_observation()
+            stacked_images = np.stack([empty_image] * self.num_frames, axis=3)
+            observation = {
+                "image": stacked_images,
+                "next_fruit": self.next_particle_type
+            }
         
         # Prepare info dict based on level
         info = {"score": self.score}
         
-        # Add engine state for levels 1 and 3
+        # Add empty engine state for levels 1 and 3
         if self.level in [1, 3]:
-            info["engine_state"] = self._get_engine_state()
+            empty_engine_state = self._get_engine_state()
+            info["engine_state"] = [empty_engine_state] * self.num_frames
         
         return observation, info
     
@@ -436,16 +455,31 @@ class SuikaEnv(gym.Env):
         stable = False
         stability_counter = 0
         
-        # Run physics until stable or max steps
-        for i in range(self.FPS):
-            # Periodically clean up invalid particles
-            if i % self.cleaup_interval == 0:
-                self._clean_invalid_particles()
-            
+        intermediate_grids = []
+        intermediate_images = []
+        intermediate_engine_states = []
+        
+        estimated_steps = self.FPS
+        capture_steps = [int(estimated_steps * (i + 1) / self.num_frames) - 1 for i in range(self.num_frames)]
+        
+        # Run physics until stable
+        steps = 0
+        while not stable and not self.game_over:
             self.space.step(1/self.FPS)
+        
+            self._clean_invalid_particles()
+            
+            if steps in capture_steps:
+                if self.level in [1, 2]:
+                    intermediate_grids.append(self._get_grid_observation())
+                else:
+                    intermediate_images.append(self._get_image_observation())
+                
+                if self.level in [1, 3]:
+                    intermediate_engine_states.append(self._get_engine_state())
             
             # Render during physics simulation if render_mode is set
-            if self.render_mode is not None and i % self.render_interval == 0:
+            if self.render_mode is not None and steps % self.render_interval == 0:
                 self._render_frame()
                 
                 if self.render_mode == "human":
@@ -461,7 +495,7 @@ class SuikaEnv(gym.Env):
             active_particles = [p for p in self.particles if p.alive]
             
             for p in active_particles:
-                if abs(p.body.velocity[0]) > 10 or abs(p.body.velocity[1]) > 10:
+                if abs(p.body.velocity[0]) > self.stability_velocity_threshold or abs(p.body.velocity[1]) > self.stability_velocity_threshold:
                     all_stable = False
                     break
             
@@ -473,9 +507,46 @@ class SuikaEnv(gym.Env):
             else:
                 stability_counter = 0
                 
+            steps += 1
+            
             if self.check_game_over():
                 self.game_over = True
-                break
+        
+        if steps >= estimated_steps:
+            # Replace the last frame with the current state
+            if self.level in [1, 2]:
+                intermediate_grids[-1] = self._get_grid_observation()
+            else:
+                intermediate_images[-1] = self._get_image_observation()
+            
+            if self.level in [1, 3]:
+                intermediate_engine_states[-1] = self._get_engine_state()
+        else:
+            captured_cnt = max(len(intermediate_grids), len(intermediate_images))
+            # Fill the remaining frames with the last captured state
+            for _ in range(self.num_frames - captured_cnt):
+                if self.level in [1, 2]:
+                    if len(intermediate_grids) == 0:
+                        intermediate_grids.append(self._get_grid_observation())
+                    else:
+                        intermediate_grids.append(intermediate_grids[-1])
+                else:
+                    if len(intermediate_images) == 0:
+                        intermediate_images.append(self._get_image_observation())
+                    else:
+                        intermediate_images.append(intermediate_images[-1])
+                
+                if self.level in [1, 3]:
+                    if len(intermediate_engine_states) == 0:
+                        intermediate_engine_states.append(self._get_engine_state())
+                    else:
+                        intermediate_engine_states.append(intermediate_engine_states[-1])
+                    
+        
+        if self.level in [1, 2]:
+            stacked_grids = np.stack(intermediate_grids, axis=2)
+        else:
+            stacked_images = np.stack(intermediate_images, axis=3)
         
         self._clean_invalid_particles()
         
@@ -490,7 +561,16 @@ class SuikaEnv(gym.Env):
         truncated = False
         
         # Get observation
-        observation = self._get_observation()
+        if self.level in [1, 2]:
+            observation = {
+                "grid": stacked_grids,
+                "next_fruit": self.next_particle_type
+            }
+        else:
+            observation = {
+                "image": stacked_images,
+                "next_fruit": self.next_particle_type
+            }
         
         # Prepare info dict based on level
         info = {
@@ -500,7 +580,7 @@ class SuikaEnv(gym.Env):
         
         # Add engine state for levels 1 and 3
         if self.level in [1, 3]:
-            info["engine_state"] = self._get_engine_state()
+            info["engine_state"] = intermediate_engine_states
         
         return observation, reward, terminated, truncated, info
     
@@ -561,11 +641,6 @@ class SuikaEnv(gym.Env):
         if self.render_mode == "human":
             pygame.display.flip()
             self.clock.tick(self.render_fps)
-        
-        # if self.render_mode == "rgb_array":
-        #     return np.transpose(
-        #         np.array(pygame.surfarray.pixels3d(self.screen)), axes=(1, 0, 2)
-        #     )
         
         return None
     
@@ -660,19 +735,22 @@ if __name__ == "__main__":
                         help='Frames per second for rendering with pygame (default: 60)')
     parser.add_argument('--save_gif', action='store_true',
                         help='Save frames as GIF for levels 3 and 4')
+    parser.add_argument('--num_frames', type=int, default=4,
+                        help='Number of intermediate frames to capture (default: 4)')
     args = parser.parse_args()
     
     # Create environment based on level
     game_id = GAME_IDS[args.level]
     render_mode = "human" if args.render else None
     
-    env = gym.make(game_id, render_mode=render_mode, render_fps=args.render_fps, fps=args.fps)
+    env = gym.make(game_id, render_mode=render_mode, render_fps=args.render_fps, fps=args.fps,
+                  num_frames=args.num_frames)
     print(f"Created environment with level {args.level}: {game_id}")
     print(f"Action space: {env.action_space}")
     print(f"Observation space: {env.observation_space}")
 
     current_time = time.time()
-    for i in range(3):
+    for i in range(10):
         obs, info = env.reset()
         
         step_count = 0
@@ -683,17 +761,26 @@ if __name__ == "__main__":
             
             if args.level in [1, 2]:
                 print(f"Grid shape: {obs['grid'].shape}, Next fruit: {obs['next_fruit']}")
+                print(f"Number of frames: {obs['grid'].shape[2]}")
             else:
                 print(f"Image shape: {obs['image'].shape}, Next fruit: {obs['next_fruit']}")
+                print(f"Number of frames: {obs['image'].shape[3]}")
                 
                 if args.save_gif:
-                    frame = Image.fromarray(obs['image'])
-                    frames.append(frame)
+                    # For saving, use the last frame of the sequence
+                    if args.level in [3, 4]:
+                        frame = Image.fromarray(obs['image'][:,:,:,-1])
+                        frames.append(frame)
                 
             if 'engine_state' in info:
-                print(f"Engine state available: {len(info['engine_state'])} particles")
-                for particle in info['engine_state']:
+                print(f"Engine states available: {len(info['engine_state'])} timepoints")
+                # Print details of the last frame's engine state
+                last_engine_state = info['engine_state'][-1]
+                print(f"Last frame has {len(last_engine_state)} particles")
+                for particle in last_engine_state[:3]:  # Only print first 3 particles
                     print(f"Particle ID: {particle['id']}, Position: {particle['position']}, Radius: {particle['radius']}, Type: {particle['type']}")
+                if len(last_engine_state) > 3:
+                    print(f"... and {len(last_engine_state) - 3} more particles")
             
             print(f"Step {step_count}, Score: {info['score']}, Reward: {reward}")
             step_count += 1
@@ -702,7 +789,7 @@ if __name__ == "__main__":
                 print(f"Game {i+1} over! Score: {info['score']}")
                 break
         
-        if args.level in [3, 4] and args.save_gif:
+        if args.level in [3, 4] and args.save_gif and frames:
             frames[0].save(f"game_{i+1}.gif", save_all=True, append_images=frames[1:], duration=100, loop=0)
     
     print(f"Elapsed time: {(time.time() - current_time):.2f} seconds")

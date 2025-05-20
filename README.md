@@ -16,19 +16,19 @@ pip install -r requirements.txt
 
 ### State Representation (Observation Space)
 - Level 1, 2: Coordinate-size list
-  - `Dict('grid': Box(0, 11, (57, 77), int8), 'next_fruit': Discrete(5))`
+  - `Dict('grid': Box(0, 11, (57, 77, NUM_FRAMES), int8), 'next_fruit': Discrete(5))`
   - `grid`: 57x77 grid with values from 0 to 11 (0 for empty space, 1-11 for each fruit type)
   - `next_fruit`: Discrete space with 5 possible fruit types (0-4)
   - Note: grid is scaled from (570, 770) to (57, 77) by `self.grid_size = (WIDTH // 10, HEIGHT // 10)` for speed, can be changed in `suika_gym.py`.
 
 - Level 3, 4: Image
-  - `Dict('image': Box(0, 255, (770, 570, 3), uint8), 'next_fruit': Discrete(5))`
+  - `Dict('image': Box(0, 255, (770, 570, 3, NUM_FRAMES), uint8), 'next_fruit': Discrete(5))`
   - `image`: 770x570 RGB image with pixel values from 0 to 255
   - `next_fruit`: Discrete space with 5 possible fruit types (0-4)
 
 ### Game Engine Access
 - Level 1, 3: Yes
-  - In `info['engine_state']`, it contains a list of dictionaries with the following keys:
+  - In `info['engine_state']`, it contains a list of size `NUM_FRAMES` containing dictionaries with the following keys:
     - `id`: Unique ID of the fruit (not important, just for debugging)
     - `position`: Position of the fruit as a list of [x, y]
     - `radius`: Radius of the fruit
@@ -57,6 +57,8 @@ options:
   --render_fps RENDER_FPS
                         Frames per second for rendering with pygame (default: 60)
   --save_gif            Save frames as GIF for levels 3 and 4
+  --num_frames NUM_FRAMES
+                        Number of intermediate frames to capture (default: 4)
 ```
 
 ## Auto Evaluation

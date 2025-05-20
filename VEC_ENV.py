@@ -21,6 +21,8 @@ if __name__ == '__main__':
                         help='Frames per second for rendering with pygame (default: 60)')
     parser.add_argument('--save_gif', action='store_true',
                         help='Save frames as GIF for levels 3 and 4')
+    parser.add_argument('--num_frames', type=int, default=4,
+                        help='Number of intermediate frames to capture (default: 4)')
     args = parser.parse_args()
 
     # Create environment based on level
@@ -29,7 +31,8 @@ if __name__ == '__main__':
 
     N = 16
     vec_env = SubprocVecEnv([
-        lambda: gym.make(game_id, render_mode=None, render_fps=args.render_fps, fps=args.fps)
+        lambda: gym.make(game_id, render_mode=None, render_fps=args.render_fps, fps=args.fps,
+                  num_frames=args.num_frames)
         for _ in range(N)
     ])
 
