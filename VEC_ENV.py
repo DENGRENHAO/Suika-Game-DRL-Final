@@ -7,7 +7,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
-from wrapper import ResizeGrayWrapper
+# from wrapper import ResizeGrayWrapper
 
 # register_envs()
 
