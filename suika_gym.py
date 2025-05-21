@@ -32,10 +32,12 @@ COLORS = [
 ]
 RADII = [17, 25, 32, 38, 50, 63, 75, 87, 100, 115, 135]
 assert len(COLORS) == len(RADII) == N_TYPES, "Number of colors or radii is not N_TYPES"
-DENSITY = 0.001
-ELASTICITY = 0.1
+FRICTION_WALL = 10
+FRICTION_FRUIT = 4
+DENSITY = 1  # seems no difference
+ELASTICITY = 0.3
 IMPULSE = 10000
-GRAVITY = 5000  # higher gravity for stronger collisions
+GRAVITY = 2000  # higher gravity for stronger collisions
 BIAS = 0.00001
 POINTS = [1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66]
 DAMPING = 0.2  # Lower to decrease the time it takes for space to be stable
@@ -43,6 +45,7 @@ FRUIT_COLLECTION_TYPE = 1
 
 FPS = 120
 PHYSICS_STEP_SIZE = 0.01
+GAMEOVER_MIN_VEC = 0.1
 
 # Environment IDs for the four different learning levels
 GAME_IDS = {
@@ -98,9 +101,8 @@ class SuikaEnv(gym.Env):
 
         # Initialize pygame if needed
         self.render_mode = render_mode
-        self._pygame_initialized = False
-        if self.render_mode is not None:
-            self._init_render()
+        # always init
+        self._init_render()
 
         # Initialize other environment variables
         self.rng = np.random.default_rng()
@@ -109,13 +111,14 @@ class SuikaEnv(gym.Env):
         self.score = 0
         self.game_over = False
         self.current_step = 0
+        self.overflow_counter = 0
 
         # Setup pymunk space
         self._reset_space()
 
         # Initialize next particle
-        self.next_particle_type = self.rng.integers(0, 5)
-        self.next_particle_x = WIDTH // 2
+        self.next_fruit_type = self.rng.integers(0, 5)
+        self.cur_fruit_x = WIDTH // 2
 
     def _setup_observation_space(self):
         """Set up observation space based on level and number of frames"""
@@ -123,7 +126,7 @@ class SuikaEnv(gym.Env):
         if self.level in [1, 2]:
             self.observation_space = spaces.Dict(
                 {
-                    "board": spaces.Sequence(
+                    "boards": spaces.Sequence(
                         spaces.Sequence(
                             spaces.Tuple(
                                 (
@@ -141,14 +144,13 @@ class SuikaEnv(gym.Env):
         else:
             self.observation_space = spaces.Dict(
                 {
-                    "image": spaces.Box(
+                    "boards": spaces.Box(
                         low=0,
                         high=255,
                         shape=(
-                            self.image_size[1],
-                            self.image_size[0],
-                            3,
                             self.n_frames,
+                            *self.image_size,
+                            3,
                         ),
                         dtype=np.uint8,
                     ),
@@ -167,7 +169,7 @@ class SuikaEnv(gym.Env):
             """Create a wall segment in the physics space"""
             body = pymunk.Body(body_type=pymunk.Body.STATIC)
             shape = pymunk.Segment(body, a, b, WALL_THICKNESS // 2)
-            shape.friction = 10
+            shape.friction = FRICTION_WALL
             self.space.add(body, shape)
             return (body, shape)
 
@@ -182,141 +184,87 @@ class SuikaEnv(gym.Env):
             FRUIT_COLLECTION_TYPE, FRUIT_COLLECTION_TYPE
         )
         handler.begin = self._collide
-        # Store collision data directly in the environment since we can't set handler.data
-        self.collision_score = 0
 
     def _init_render(self):
         """Initialize rendering components"""
-        if not self._pygame_initialized:
-            pygame.init()
-            if self.render_mode == "human":
-                self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-                pygame.display.set_caption(f"Suika Gym - Level {self.level}")
-            else:
-                self.screen = pygame.Surface((WIDTH, HEIGHT))
-
-            self.clock = pygame.time.Clock()
+        pygame.init()
+        if self.render_mode == "human":
+            self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+            pygame.display.set_caption(f"Suika Gym - Level {self.level}")
             pygame.font.init()
             self.scorefont = pygame.font.SysFont("monospace", 32)
             self.overfont = pygame.font.SysFont("monospace", 72)
             self.idfont = pygame.font.SysFont("monospace", 12)
-            self._pygame_initialized = True
+            self.clock = pygame.time.Clock()
+        else:
+            self.screen = pygame.Surface((WIDTH, HEIGHT))
+
+    def _remove_fruit(self, fruit: "Fruit"):
+        fruit.removed = True
+        self.space.remove(fruit.body, fruit)
+        self.fruits.remove(fruit)
 
     def _collide(self, arbiter, space, data):
-        """Collision handler for fruits"""
+        """Collision handler for fruits registered in pymunk"""
         fruit1: Fruit
         fruit2: Fruit
         fruit1, fruit2 = arbiter.shapes
+        if fruit1.removed or fruit2.removed:
+            # print(f"Collision with removed fruit {fruit1.id} or {fruit2.id}")
+            return False  # ignore other collision happens in the same step of merge
 
-        same_type = bool(fruit1.type == fruit2.type)
-        cond = not same_type
-        fruit1.has_collided = cond
-        fruit2.has_collided = cond
-
-        if same_type:  # Same fruit type, merge them
-            new_particle = self._merge_fruits(fruit1, fruit2, space)
-            if new_particle is not None:
-                self.fruits.append(new_particle)
+        if fruit1.type == fruit2.type:  # merge
+            self._remove_fruit(fruit1)
+            self._remove_fruit(fruit2)
+            # print(f"Merge {fruit1.id}  {fruit2.id}")
+            # assume removed fruit information still accessible
             self.collision_score += POINTS[fruit1.type]
+            if fruit1.type != N_TYPES - 1:
+                new_fruit_pos = fruit1.pos if fruit1.id < fruit2.id else fruit2.pos
+                merged_fruit = Fruit(new_fruit_pos, fruit1.type + 1, space)
+                self.fruits.append(merged_fruit)
+            return False  # ignore collision
 
-        return cond  # Return True to allow the collision, False to ignore it
+            # Apply impulses to nearby particles
+            # for p in self.fruits:
+            #     vector = p.pos - pn.pos
+            #     distance = np.linalg.norm(vector)
+            #     if distance < pn.radius + p.radius:
+            #         impulse = IMPULSE * vector / (distance**2)
+            #         p.body.apply_impulse_at_local_point(tuple(impulse))
 
-    def _merge_fruits(self, fruit1: "Fruit", fruit2: "Fruit", space):
-        """Resolve collision between two identical fruits"""
-        fruit1.kill(space)
-        fruit2.kill(space)
-
-        # Create new merged particle
-        if fruit1.type == N_TYPES - 1:
-            return None
-
-        new_pos = fruit1.pos if fruit1.id < fruit2.id else fruit2.pos
-        pn = Fruit(new_pos, fruit1.type + 1, space)
-
-        # Apply impulses to nearby particles
-        # for p in self.fruits:
-        #     if p.alive:
-        #         vector = p.pos - pn.pos
-        #         distance = np.linalg.norm(vector)
-        #         if distance < pn.radius + p.radius:
-        #             impulse = IMPULSE * vector / (distance**2)
-        #             p.body.apply_impulse_at_local_point(tuple(impulse))
-
-        return pn
-
-    def _get_image_board(self):
-        """Get image-based observation (for levels 3 and 4)"""
-        # Ensure render component is initialized
-        if not hasattr(self, "screen"):
-            if not self._pygame_initialized:
-                # Initialize a hidden screen for rendering
-                pygame.init()
-                self.screen = pygame.Surface((WIDTH, HEIGHT))
-                pygame.font.init()
-                self.idfont = None  # Don't show IDs in the observation
-                self._pygame_initialized = True
-
-        # Render the game state to the surface
-        self.screen.fill(BG_COLOR)
-
-        # Draw next particle indicator
-        if not self.game_over:
-            self._draw_next_particle()
-
-        # Draw walls
-        for wall in self.walls:
-            pygame.draw.line(self.screen, W_COLOR, wall[1].a, wall[1].b, WALL_THICKNESS)
-
-        # Draw particles
-        active_particles = [p for p in self.fruits if p.alive]
-        for p in active_particles:
-            p.draw(self.screen, None)  # Don't draw IDs in the observation
-
-        # Scale the surface to the desired size
-        scaled_surface = pygame.transform.scale(self.screen, self.image_size)
-
-        # Convert to numpy array
-        img_array = np.transpose(
-            np.array(pygame.surfarray.pixels3d(scaled_surface)), axes=(1, 0, 2)
-        )
-
-        return img_array
-
-    def _get_list_board(self):
-        """Get the internal game engine state (positions and radii of particles)"""
-        list_state = []
-        for p in self.fruits:
-            list_state.append(p.state)
-        return list_state
+        return True  # Return True to allow the collision, False to ignore it
 
     def _get_board(self):
+        def get_image_board():
+            return self.render()
+
+        def get_list_board():
+            """Get the internal game engine state (positions and radii of particles)"""
+            list_state = []
+            for p in self.fruits:
+                list_state.append(p.state)
+            return list_state
+
         """Get observation based on level"""
         if self.level in [1, 2]:
-            return self._get_list_board()
+            return get_list_board()
         else:
-            return self._get_image_board()
+            return get_image_board()
 
     def check_game_over(self):
-        """Check if game is over (fruit above threshold line)"""
-        for p in self.fruits:
-            if p.alive and p.has_collided and p.pos[1] < PAD[1]:
-                return True
+        """Check if game is over (fruit above threshold line with <EPS down vec)"""
+        for fruit in self.fruits:
+            if (
+                fruit.pos[1] - fruit.radius < PAD[1]
+                and fruit.body.velocity.length < GAMEOVER_MIN_VEC
+            ):
+                self.overflow_counter += 1
+                if self.overflow_counter > 10:
+                    return True
+                return False
+        self.overflow_counter = 0
         return False
-
-    def _clean_invalid_particles(self):
-        """Clean up particles with invalid positions"""
-        to_remove = []
-        for p in self.fruits:
-            if p.alive and np.isnan(p.pos).any():
-                p.kill(self.space)
-                to_remove.append(p)
-
-        # Remove killed particles from the list
-        for p in to_remove:
-            try:
-                self.fruits.remove(p)
-            except ValueError:
-                pass
 
     def reset(self, seed=None, options=None):
         """Reset the environment to initial state"""
@@ -328,33 +276,21 @@ class SuikaEnv(gym.Env):
         self.score = 0
         self.game_over = False
         self.current_step = 0
+        self.overflow_counter = 0
 
         # Re-initialize the physics space
         self._reset_space()
 
         # Generate new first fruit
-        self.next_particle_type = self.rng.integers(0, 5)
-        self.next_particle_x = WIDTH // 2
+        self.next_fruit_type = self.rng.integers(0, 5)
+        self.cur_fruit_x = WIDTH // 2
 
         # Create initial observation with repeated frames
-        if self.level in [1, 2]:
-            observation = {
-                "board": [[] for _ in range(self.n_frames)],
-                "next_fruit": self.next_particle_type,
-            }
-        else:
-            # Create an empty image
-            empty_image = np.zeros(
-                (self.image_size[1], self.image_size[0], 3), dtype=np.uint8
-            )
-            if self.render_mode is not None:
-                # Use the actual rendered image instead of empty
-                empty_image = self._get_image_board()
-            stacked_images = np.stack([empty_image] * self.n_frames, axis=3)
-            observation = {
-                "image": stacked_images,
-                "next_fruit": self.next_particle_type,
-            }
+        boards = [self._get_board() for _ in range(self.n_frames)]
+        observation = {
+            "boards": boards,
+            "next_fruit": self.next_fruit_type,
+        }
 
         info = {"score": self.score}
         return observation, info
@@ -372,39 +308,40 @@ class SuikaEnv(gym.Env):
         self.current_step += 1
 
         # Process action (map from [0,1] to screen width with padding)
-        x_min = PAD[0] + RADII[self.next_particle_type] + WALL_THICKNESS // 2
+        x_min = PAD[0] + RADII[self.next_fruit_type] + WALL_THICKNESS // 2
         x_max = WIDTH - x_min
         x_pos = x_min + action[0] * (x_max - x_min)
+        self.cur_fruit_x = x_pos
 
         # Create and drop new particle
         old_score = self.score
-        new_particle = Fruit(
+        new_fruit = Fruit(
             (x_pos, PAD[1] // 2),
-            self.next_particle_type,
+            self.next_fruit_type,
             self.space,
         )
-        self.fruits.append(new_particle)
+        self.fruits.append(new_fruit)
 
         # Run physics for a fixed amount of time
         boards = []
         self.collision_score = 0
         for t in range(FPS):
             self.space.step(PHYSICS_STEP_SIZE)
-            self._clean_invalid_particles()
 
             if t % self.frame_interval == 0:
                 boards.append(self._get_board())
 
             # Render during physics simulation if render_mode is set
-            if self.render_mode is not None and t % self.render_interval == 0:
-                self._render_frame()
-
-                if self.render_mode == "human":
-                    # Process events to keep the window responsive
-                    for event in pygame.event.get():
-                        if event.type == pygame.QUIT:
-                            pygame.quit()
-                            sys.exit()
+            if self.render_mode == "human" and t % self.render_interval == 0:
+                self._render_frame_in_pygame_surface(human=True)
+                # Display on the screen
+                pygame.display.flip()
+                self.clock.tick(self.render_fps)  # Limit program running speed
+                # Process events to keep the window responsive
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        sys.exit()
 
             if (
                 self.check_game_over()
@@ -414,7 +351,7 @@ class SuikaEnv(gym.Env):
         self.score += self.collision_score
 
         # Generate next fruit
-        self.next_particle_type = self.rng.integers(0, 5)
+        self.next_fruit_type = self.rng.integers(0, 5)
 
         # Calculate reward
         reward = self.score - old_score  # Reward based on points gained
@@ -424,89 +361,74 @@ class SuikaEnv(gym.Env):
         truncated = False
 
         # Get observation
-        if self.level in [1, 2]:
-            observation = {"board": boards, "next_fruit": self.next_particle_type}
-        else:
-            observation = {
-                "image": boards,
-                "next_fruit": self.next_particle_type,
-            }
+        observation = {"boards": boards, "next_fruit": self.next_fruit_type}
 
         # Prepare info dict based on level
         info = {"score": self.score}
 
         return observation, reward, terminated, truncated, info
 
-    def _draw_next_particle(self):
-        """Draw the next particle indicator"""
-        n = self.next_particle_type
-        radius = RADII[n]
-        c1 = np.array(COLORS[n])
-        c2 = (c1 * 0.8).astype(int)
-        pygame.draw.circle(
-            self.screen, tuple(c2), (self.next_particle_x, PAD[1] // 2), radius
-        )
-        pygame.draw.circle(
-            self.screen,
-            tuple(c1),
-            (self.next_particle_x, PAD[1] // 2),
-            radius * 0.9,
-        )
-
     def render(self):
         """Render the environment"""
-        if self.render_mode is None:
-            return
+        self._render_frame_in_pygame_surface()
+        scaled_surface = pygame.transform.scale(self.screen, self.image_size)
 
-        return self._render_frame()
+        # Convert to numpy array
+        img_array = np.transpose(
+            np.array(pygame.surfarray.pixels3d(scaled_surface)), axes=(1, 0, 2)
+        )
 
-    def _render_frame(self):
+        return img_array
+
+    def _render_frame_in_pygame_surface(self, human=False):
         """Render a single frame of the environment"""
-        if not hasattr(self, "screen"):
-            return None
+        # redraw everything if human is fine, won't affect training
+
+        def draw_next_particle():
+            """Draw the next particle indicator"""
+            n = self.next_fruit_type
+            radius = RADII[n]
+            c1 = np.array(COLORS[n])
+            c2 = (c1 * 0.8).astype(int)
+            pygame.draw.circle(
+                self.screen, tuple(c2), (self.cur_fruit_x, PAD[1] // 2), radius
+            )
+            pygame.draw.circle(
+                self.screen,
+                tuple(c1),
+                (self.cur_fruit_x, PAD[1] // 2),
+                radius * 0.9,
+            )
 
         # Fill background
         self.screen.fill(BG_COLOR)
-
-        # Draw next particle indicator
-        if not self.game_over:
-            self._draw_next_particle()
 
         # Draw walls
         for wall in self.walls:
             pygame.draw.line(self.screen, W_COLOR, wall[1].a, wall[1].b, WALL_THICKNESS)
 
         # Draw particles - optimization: only draw active ones
-        active_particles = [p for p in self.fruits if p.alive]
-        for p in active_particles:
+        for p in self.fruits:
             p.draw(self.screen, self.idfont)
 
-        # Draw score
-        score_label = self.scorefont.render(f"Score: {self.score}", 1, (0, 0, 0))
-        self.screen.blit(score_label, (10, 10))
-
-        # Draw level indicator
-        level_label = self.scorefont.render(f"Level: {self.level}", 1, (0, 0, 0))
-        self.screen.blit(level_label, (10, 50))
-
-        # Draw game over
-        if self.game_over:
+        if not self.game_over:
+            draw_next_particle()
+        elif human:  # Draw game over
             game_over_label = self.overfont.render("Game Over!", 1, (0, 0, 0))
             self.screen.blit(game_over_label, PAD)
 
-        # Display or return the screen
-        if self.render_mode == "human":
-            pygame.display.flip()
-            self.clock.tick(self.render_fps)
+        if human:
+            # Draw score
+            score_label = self.scorefont.render(f"Score: {self.score}", 1, (0, 0, 0))
+            self.screen.blit(score_label, (10, 10))
 
-        return None
+            # Draw level indicator
+            level_label = self.scorefont.render(f"Level: {self.level}", 1, (0, 0, 0))
+            self.screen.blit(level_label, (10, 50))
 
     def close(self):
         """Clean up resources"""
-        if self._pygame_initialized and self.render_mode == "human":
-            self._pygame_initialized = False
-            pygame.quit()
-            sys.exit()
+        pygame.quit()
 
 
 FruitState = namedtuple("FruitState", ["pos", "radius", "type"])
@@ -526,14 +448,13 @@ class Fruit(pymunk.Circle):
         self.density = DENSITY
         self.elasticity = ELASTICITY
         self.collision_type = FRUIT_COLLECTION_TYPE
-        self.friction = 2
+        self.friction = FRICTION_FRUIT
 
         self.id = self._new_id()  # Incremental ID for merge precedence
         self.type = type
-        self.has_collided = False
+        self.removed = False
 
         space.add(self.body, self)  # required to add body first
-        self.alive = True
 
     @classmethod
     def _new_id(cls):
@@ -541,40 +462,35 @@ class Fruit(pymunk.Circle):
         return cls.id_cnt
 
     def draw(self, screen, font):
-        if self.alive:
-            c1 = np.array(COLORS[self.type])
-            c2 = (c1 * 0.8).astype(int)
-            position = self.body.position
-            pygame.draw.circle(screen, tuple(c2), position, self.radius)
-            pygame.draw.circle(screen, tuple(c1), position, self.radius * 0.9)
+        c1 = np.array(COLORS[self.type])
+        c2 = (c1 * 0.8).astype(int)
+        position = self.body.position
+        pygame.draw.circle(screen, tuple(c2), position, self.radius)
+        pygame.draw.circle(screen, tuple(c1), position, self.radius * 0.9)
 
-            # Only draw IDs if font is provided - optimization
-            if font:
-                # Choose a contrasting color (black or white) based on background color brightness
-                brightness = sum(c1) / 3
-                text_color = (0, 0, 0) if brightness > 128 else (255, 255, 255)
+        # Only draw IDs if font is provided - optimization
+        if font:
+            # Choose a contrasting color (black or white) based on background color brightness
+            brightness = sum(c1) / 3
+            text_color = (0, 0, 0) if brightness > 128 else (255, 255, 255)
 
-                # Render the ID text
-                id_text = font.render(f"{self.id}", 1, text_color)
+            # Render the ID text
+            id_text = font.render(f"{self.id}", 1, text_color)
 
-                # Center the text on the particle
-                text_pos = (
-                    position[0] - id_text.get_width() // 2,
-                    position[1] - id_text.get_height() // 2,
-                )
-                screen.blit(id_text, text_pos)
-
-    def kill(self, space):
-        space.remove(self.body, self)
-        self.alive = False
-
-    @property
-    def state(self):
-        return FruitState(self.body.position, self.radius, self.type)
+            # Center the text on the particle
+            text_pos = (
+                position[0] - id_text.get_width() // 2,
+                position[1] - id_text.get_height() // 2,
+            )
+            screen.blit(id_text, text_pos)
 
     @property
     def pos(self):
         return np.array(self.body.position)
+
+    @property
+    def state(self):
+        return FruitState(self.pos, self.radius, self.type)
 
 
 # Register the environments with Gymnasium
