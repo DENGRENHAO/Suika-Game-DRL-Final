@@ -409,7 +409,7 @@ class SuikaEnv(gym.Env):
 
         # Draw particles - optimization: only draw active ones
         for p in self.fruits:
-            p.draw(self.screen, self.idfont)
+            p.draw(self.screen, label=self.idfont if human else None)
 
         if not self.game_over:
             draw_next_particle()
@@ -461,7 +461,7 @@ class Fruit(pymunk.Circle):
         cls.id_cnt += 1
         return cls.id_cnt
 
-    def draw(self, screen, font):
+    def draw(self, screen, label=None):
         c1 = np.array(COLORS[self.type])
         c2 = (c1 * 0.8).astype(int)
         position = self.body.position
@@ -469,13 +469,13 @@ class Fruit(pymunk.Circle):
         pygame.draw.circle(screen, tuple(c1), position, self.radius * 0.9)
 
         # Only draw IDs if font is provided - optimization
-        if font:
+        if label is not None:
             # Choose a contrasting color (black or white) based on background color brightness
             brightness = sum(c1) / 3
             text_color = (0, 0, 0) if brightness > 128 else (255, 255, 255)
 
             # Render the ID text
-            id_text = font.render(f"{self.id}", 1, text_color)
+            id_text = label.render(f"{self.id}", 1, text_color)
 
             # Center the text on the particle
             text_pos = (
