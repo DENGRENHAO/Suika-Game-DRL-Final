@@ -117,7 +117,7 @@ class SuikaEnv(gym.Env):
         self._reset_space()
 
         # Initialize next particle
-        self.next_fruit_type = self.rng.integers(0, 5)
+        self.next_fruit_type = self._gen_next_fruit_type()
 
     def _setup_observation_space(self):
         """Set up observation space based on level and number of frames"""
@@ -153,6 +153,7 @@ class SuikaEnv(gym.Env):
                         ),
                         dtype=np.uint8,
                     ),
+                    "cur_fruit": spaces.Discrete(5),
                     "next_fruit": spaces.Discrete(5),
                 }
             )
@@ -234,6 +235,9 @@ class SuikaEnv(gym.Env):
 
         return True  # Return True to allow the collision, False to ignore it
 
+    def _gen_next_fruit_type(self):
+        return self.rng.integers(0, 5)
+
     def _get_board(self):
         def get_image_board():
             return self.render()
@@ -265,6 +269,16 @@ class SuikaEnv(gym.Env):
         self.overflow_counter = 0
         return False
 
+    def _get_observation(self, boards):
+        return {
+            "boards": boards,
+            "cur_fruit": self.cur_fruit_type,
+            "next_fruit": self.next_fruit_type,
+        }
+
+    def _get_info(self):
+        return {"score": self.score}
+
     def reset(self, seed=None, options=None):
         """Reset the environment to initial state"""
         super().reset(seed=seed)
@@ -280,17 +294,14 @@ class SuikaEnv(gym.Env):
         # Re-initialize the physics space
         self._reset_space()
 
-        # Generate new first fruit
-        self.next_fruit_type = self.rng.integers(0, 5)
+        # Generate new first fruits
+        self.cur_fruit_type = self._gen_next_fruit_type()
+        self.next_fruit_type = self._gen_next_fruit_type()
 
         # Create initial observation with repeated frames
         boards = [self._get_board() for _ in range(self.n_frames)]
-        observation = {
-            "boards": boards,
-            "next_fruit": self.next_fruit_type,
-        }
-
-        info = {"score": self.score}
+        observation = self._get_observation(boards)
+        info = self._get_info()
         return observation, info
 
     def step(self, action):
@@ -311,13 +322,14 @@ class SuikaEnv(gym.Env):
         x_pos = x_min + action[0] * (x_max - x_min)
 
         # Create and drop new particle
-        old_score = self.score
-        new_fruit = Fruit(
+        self.cur_fruit_type = self.next_fruit_type
+        self.next_fruit_type = self._gen_next_fruit_type()
+        cur_fruit = Fruit(
             (x_pos, PAD[1] // 2),
-            self.next_fruit_type,
+            self.cur_fruit_type,
             self.space,
         )
-        self.fruits.append(new_fruit)
+        self.fruits.append(cur_fruit)
 
         # Run physics for a fixed amount of time
         boards = []
@@ -347,22 +359,15 @@ class SuikaEnv(gym.Env):
 
         self.score += self.collision_score
 
-        # Generate next fruit
-        self.next_fruit_type = self.rng.integers(0, 5)
-
+        observation = self._get_observation(boards)
         # Calculate reward
-        reward = self.score - old_score  # Reward based on points gained
+        reward = self.collision_score  # Reward based on points gained
 
         # Check termination conditions
         terminated = self.game_over
         truncated = False
 
-        # Get observation
-        observation = {"boards": boards, "next_fruit": self.next_fruit_type}
-
-        # Prepare info dict based on level
-        info = {"score": self.score}
-
+        info = self._get_info()
         return observation, reward, terminated, truncated, info
 
     def render(self):
