@@ -373,9 +373,9 @@ class SuikaEnv(gym.Env):
         self._render_frame_in_pygame_surface()
         scaled_surface = pygame.transform.scale(self.screen, self.image_size)
 
-        # Convert to numpy array
+        # Convert to numpy array [C, H, W] pytorch format
         img_array = np.transpose(
-            np.array(pygame.surfarray.pixels3d(scaled_surface)), axes=(1, 0, 2)
+            np.array(pygame.surfarray.pixels3d(scaled_surface)), axes=(2, 1, 0)
         )
 
         return img_array
