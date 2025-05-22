@@ -118,7 +118,6 @@ class SuikaEnv(gym.Env):
 
         # Initialize next particle
         self.next_fruit_type = self.rng.integers(0, 5)
-        self.cur_fruit_x = WIDTH // 2
 
     def _setup_observation_space(self):
         """Set up observation space based on level and number of frames"""
@@ -283,7 +282,6 @@ class SuikaEnv(gym.Env):
 
         # Generate new first fruit
         self.next_fruit_type = self.rng.integers(0, 5)
-        self.cur_fruit_x = WIDTH // 2
 
         # Create initial observation with repeated frames
         boards = [self._get_board() for _ in range(self.n_frames)]
@@ -311,7 +309,6 @@ class SuikaEnv(gym.Env):
         x_min = PAD[0] + RADII[self.next_fruit_type] + WALL_THICKNESS // 2
         x_max = WIDTH - x_min
         x_pos = x_min + action[0] * (x_max - x_min)
-        self.cur_fruit_x = x_pos
 
         # Create and drop new particle
         old_score = self.score
@@ -384,22 +381,6 @@ class SuikaEnv(gym.Env):
         """Render a single frame of the environment"""
         # redraw everything if human is fine, won't affect training
 
-        def draw_next_particle():
-            """Draw the next particle indicator"""
-            n = self.next_fruit_type
-            radius = RADII[n]
-            c1 = np.array(COLORS[n])
-            c2 = (c1 * 0.8).astype(int)
-            pygame.draw.circle(
-                self.screen, tuple(c2), (self.cur_fruit_x, PAD[1] // 2), radius
-            )
-            pygame.draw.circle(
-                self.screen,
-                tuple(c1),
-                (self.cur_fruit_x, PAD[1] // 2),
-                radius * 0.9,
-            )
-
         # Fill background
         self.screen.fill(BG_COLOR)
 
@@ -411,13 +392,9 @@ class SuikaEnv(gym.Env):
         for p in self.fruits:
             p.draw(self.screen, label=self.idfont if human else None)
 
-        if not self.game_over:
-            draw_next_particle()
-        elif human:  # Draw game over
+        if human:
             game_over_label = self.overfont.render("Game Over!", 1, (0, 0, 0))
             self.screen.blit(game_over_label, PAD)
-
-        if human:
             # Draw score
             score_label = self.scorefont.render(f"Score: {self.score}", 1, (0, 0, 0))
             self.screen.blit(score_label, (10, 10))
