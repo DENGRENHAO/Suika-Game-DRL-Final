@@ -15,7 +15,7 @@ B = (PAD[0], HEIGHT - PAD[0])
 C = (WIDTH - PAD[0], HEIGHT - PAD[0])
 D = (WIDTH - PAD[0], PAD[1])
 BG_COLOR = (250, 240, 148)
-W_COLOR = (250, 190, 58)
+WALL_COLOR = (250, 190, 58)
 N_TYPES = 11
 COLORS = [
     (245, 0, 0),
@@ -85,9 +85,6 @@ class SuikaEnv(gym.Env):
         self.n_frames = n_frames  # Number of intermediate frames to collect
         self.frame_interval = FPS // n_frames
         self.render_interval = 4
-
-        # Grid size for coordinate representation
-        self.grid_size = (WIDTH // 10, HEIGHT // 10)
 
         # Image size for image-based representation (levels 3 and 4)
         self.image_size = (WIDTH, HEIGHT)
@@ -389,13 +386,15 @@ class SuikaEnv(gym.Env):
         # Fill background
         self.screen.fill(BG_COLOR)
 
-        # Draw walls
-        for wall in self.walls:
-            pygame.draw.line(self.screen, W_COLOR, wall[1].a, wall[1].b, WALL_THICKNESS)
-
         # Draw particles - optimization: only draw active ones
         for p in self.fruits:
             p.draw(self.screen, label=self.idfont if human else None)
+
+        # Draw walls (after particles due to elasticity)
+        for wall in self.walls:
+            pygame.draw.line(
+                self.screen, WALL_COLOR, wall[1].a, wall[1].b, WALL_THICKNESS
+            )
 
         if human:
             game_over_label = self.overfont.render("Game Over!", 1, (0, 0, 0))
