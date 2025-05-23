@@ -17,10 +17,6 @@ WALL_THICKNESS = 4
 n_frames = 8
 
 
-def normalize_images(images):
-    return [image.astype(np.float32) / 255.0 for image in images]
-
-
 class CoordSizeToImage(gym.ObservationWrapper):
     def __init__(self, env, image_size=(96, 96)):
         gym.ObservationWrapper.__init__(self, env)
@@ -45,7 +41,7 @@ class CoordSizeToImage(gym.ObservationWrapper):
                         1,
                         *image_size,
                     ),
-                    dtype=np.float32,
+                    dtype=np.int8,
                 ),
                 "cur_fruit": spaces.Discrete(5),
                 "next_fruit": spaces.Discrete(5),
@@ -96,14 +92,13 @@ class CoordSizeToImage(gym.ObservationWrapper):
                     image, center=pos, radius=int(r), color=GRAYS[t], thickness=-1
                 )
             images.append(image)
-        images = normalize_images(images)
         # To tensor for RL library
         observation["boards"] = (
             torch.from_numpy(np.array(images))
             .unsqueeze(-1)
             .permute(0, 3, 1, 2)  # [B,C,H,W]
         )
-        
+
         # not needed in SB3 because it converts to one-hot by value
         observation["cur_fruit"] = torch.tensor(
             observation["cur_fruit"], dtype=torch.int8
@@ -112,29 +107,4 @@ class CoordSizeToImage(gym.ObservationWrapper):
             observation["next_fruit"], dtype=torch.int8
         )
 
-        return observation
-
-
-class NormalizeFrame(gym.ObservationWrapper):
-    def __init__(self, env, image_size):
-        gym.ObservationWrapper.__init__(self, env)
-        self.observation_space = spaces.Dict(
-            {
-                "boards": spaces.Box(
-                    low=0,
-                    high=1,
-                    shape=(
-                        n_frames,
-                        *image_size,
-                        3,
-                    ),
-                    dtype=np.float32,
-                ),
-                "cur_fruit": spaces.Discrete(5),
-                "next_fruit": spaces.Discrete(5),
-            }
-        )
-
-    def observation(self, observation):
-        observation["frames"] = normalize_images(observation["frames"])
         return observation
