@@ -1,5 +1,10 @@
 # Suika Game - DRL Final Project
 
+## Scores
+
+- All 0: 500-600
+- random [0,1]: 681.42
+
 ## Pre-requisites
 
 - python version: 3.12.0
