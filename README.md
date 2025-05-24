@@ -1,12 +1,15 @@
 # Suika Game - DRL Final Project
 
 ## Pre-requisites
+
 - python version: 3.12.0
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ## Environment Levels
+
 | Level | State Representation | Game Engine Access |
 | ----- | -------------------- | ------------------ |
 | 1     | Coordinate-size list | Yes                |
@@ -15,7 +18,9 @@ pip install -r requirements.txt
 | 4     | Image                | No                 |
 
 ### State Representation (Observation Space)
+
 - Level 1, 2: Coordinate-size list
+
   - `Dict('grid': Box(0, 11, (57, 77, NUM_FRAMES), int8), 'next_fruit': Discrete(5))`
   - `grid`: 57x77 grid with values from 0 to 11 (0 for empty space, 1-11 for each fruit type)
   - `next_fruit`: Discrete space with 5 possible fruit types (0-4)
@@ -27,6 +32,7 @@ pip install -r requirements.txt
   - `next_fruit`: Discrete space with 5 possible fruit types (0-4)
 
 ### Game Engine Access
+
 - Level 1, 3: Yes
   - In `info['engine_state']`, it contains a list of size `NUM_FRAMES` containing dictionaries with the following keys:
     - `id`: Unique ID of the fruit (not important, just for debugging)
@@ -37,10 +43,12 @@ pip install -r requirements.txt
   - No access to the game engine state.
 
 ### Action Space
+
 - `Action space: Box(0.0, 1.0, (1,), float32)`
   - Continuous action space with a single value between 0 and 1, representing the position to drop the fruit on the x-axis.
 
 ## Usage
+
 ```bash
 python suika_gym.py --help
 pygame 2.6.1 (SDL 2.28.4, Python 3.12.0)
@@ -63,22 +71,24 @@ options:
 
 ## Auto Evaluation
 
-+ The project includes an automatic evaluation script evaluate.py located in the root directory. This script can discover and evaluate any agent that inherits from agents.base_agent.Agent. 
+- The project includes an automatic evaluation script evaluate.py located in the root directory. This script can discover and evaluate any agent that inherits from agents.base_agent.Agent.
 
-### Usage 
+### Usage
 
-+ Run the script from the project root directory:
+- Run the script from the project root directory:
+
   ```bash
   python evaluate.py
   ```
 
   Options:
 
-  --agents AGENT_NAME: Specify one or more agent class names to evaluate (e.g., RandomAgent MyCustomAgent). If not set, all discoverable agents in the agents directory are evaluated. 
-  
-  --episodes NUM_EPISODES: Number of episodes to run for each agent (default: 20). 
-  
+  --agents AGENT_NAME: Specify one or more agent class names to evaluate (e.g., RandomAgent MyCustomAgent). If not set, all discoverable agents in the agents directory are evaluated.
+
+  --episodes NUM_EPISODES: Number of episodes to run for each agent (default: 20).
+
   --max_steps MAX_STEPS_PER_EPISODE: Maximum number of steps per episode before it's considered terminated (default: 1500).
 
 ## References
+
 - [Suika Environment by Ole-Batting](https://github.com/Ole-Batting/suika/tree/master)
