@@ -35,13 +35,13 @@ class CoordSizeToImage(gym.ObservationWrapper):
             {
                 "boards": spaces.Box(
                     low=0,
-                    high=1,
+                    high=255,
                     shape=(
                         n_frames,
                         1,
                         *image_size,
                     ),
-                    dtype=np.int8,
+                    dtype=np.uint8,
                 ),
                 "cur_fruit": spaces.Discrete(5),
                 "next_fruit": spaces.Discrete(5),
