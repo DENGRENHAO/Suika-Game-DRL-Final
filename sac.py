@@ -92,10 +92,11 @@ class MyCombinedExtractor(BaseFeaturesExtractor):
 
 
 class WandbLoggingCallback(BaseCallback):
-    def __init__(self, eval_env, interval=500, verbose=0):
+    def __init__(self, eval_env, log_interval=500, verbose=0):
         super().__init__(verbose)
         self.eval_env = eval_env
-        self.interval = interval
+        self.interval = log_interval
+        self.eval_interval = log_interval * 10
         self.ep_reward = 0
         self.rewards = deque(maxlen=100)
 
@@ -119,27 +120,23 @@ class WandbLoggingCallback(BaseCallback):
             self.ep_reward = 0
 
         if (self.num_timesteps + 1) % self.interval == 0:
-
-            score, frames = evaluate()
-            # resize frames to height 100
-            # h = 100
-            # w = round(frames[0].shape[1] * h / frames[0].shape[0])
-            # frames = [cv2.resize(frame, (h, w)) for frame in frames]
-            frames = np.array(frames)
-            frames = frames.transpose(0, 3, 1, 2)  # Convert to (T, C, H, W) formath
-            print(f"Eval score: {score:.2f}")
             logs = {
                 "train_score": np.mean(self.rewards) if len(self.rewards) > 0 else 0,
-                "eval_score": score,
                 "actor_loss": self.logger.name_to_value["train/actor_loss"],
                 "critic_loss": self.logger.name_to_value["train/critic_loss"],
                 "ent_coef": self.logger.name_to_value["train/ent_coef"],
-                "video": wandb.Video(
+            }
+            if (self.num_timesteps + 1) % self.eval_interval == 0:
+                score, frames = evaluate()
+                print(f"Step {self.num_timesteps} eval score: {score:.2f}")
+                frames = np.array(frames)
+                frames = frames.transpose(0, 3, 1, 2)  # Convert to (T, C, H, W) formath
+                logs["eval_score"] = score
+                logs["video"] = wandb.Video(
                     frames,
                     fps=30,
                     format="mp4",
-                ),
-            }
+                )
             wandb.log(logs, step=self.num_timesteps)
         return True
 
@@ -174,7 +171,7 @@ model = SAC(
 )
 model.learn(
     total_timesteps=config["total_timesteps"],
-    log_interval=100,
+    log_interval=10,  # episode
     progress_bar=True,
     callback=WandbLoggingCallback(make_env()),
 )
