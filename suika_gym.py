@@ -223,7 +223,8 @@ class SuikaEnv(gym.Env):
             self._remove_fruit(fruit2)
             # print(f"Merge {fruit1.id}  {fruit2.id}")
             # assume removed fruit information still accessible
-            self.collision_score += POINTS[fruit1.type]
+            self.merge_score += POINTS[fruit1.type]
+            self.merge_count += 1
             if fruit1.type != N_TYPES - 1:
                 new_fruit_pos = fruit1.pos if fruit1.id < fruit2.id else fruit2.pos
                 merged_fruit = Fruit(new_fruit_pos, fruit1.type + 1, space)
@@ -282,7 +283,11 @@ class SuikaEnv(gym.Env):
         }
 
     def _get_info(self, fruit_states):
-        return {"score": self.score, "fruit_states": fruit_states}
+        return {
+            "score": self.score,
+            "fruit_states": fruit_states,
+            "merge_count": self.merge_count,
+        }
 
     def reset(self, seed=None, options=None):
         """Reset the environment to initial state"""
@@ -295,6 +300,8 @@ class SuikaEnv(gym.Env):
         self.game_over = False
         self.current_step = 0
         self.overflow_counter = 0
+        self.merge_score = 0
+        self.merge_count = 0
 
         # Re-initialize the physics space
         self._reset_space()
@@ -342,7 +349,8 @@ class SuikaEnv(gym.Env):
 
         # Run physics for a fixed amount of time
         boards = []
-        self.collision_score = 0
+        self.merge_score = 0
+        self.merge_count = 0
         for t in range(FPS):
             self.space.step(PHYSICS_STEP_SIZE)
 
@@ -375,11 +383,11 @@ class SuikaEnv(gym.Env):
             ):  # check at beginning so won't collide out of container
                 self.game_over = True
 
-        self.score += self.collision_score
+        self.score += self.merge_score
 
         observation = self._get_observation(boards)
         # Calculate reward
-        reward = self.collision_score  # Reward based on points gained
+        reward = self.merge_score  # Reward based on points gained
 
         # Check termination conditions
         terminated = self.game_over
