@@ -6,6 +6,7 @@ import gymnasium as gym
 from gymnasium import spaces
 from gymnasium.envs.registration import register
 from collections import namedtuple
+from copy import deepcopy
 
 SIZE = WIDTH, HEIGHT = np.array([570, 770])
 PAD = (24, 160)
@@ -55,9 +56,13 @@ GAME_IDS = {
     4: "suika-game-l4-v0",  # Image without game engine access
 }
 
+FruitState = namedtuple("FruitState", ["pos", "radius", "type"])
+
 
 class SuikaEnv(gym.Env):
-    def __init__(self, n_frames=8, level=1, render_mode=None, render_fps=60):
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
+
+    def __init__(self, n_frames=8, level=1, render_mode="rgb_array", render_fps=60):
         """
         Initialize the Suika game environment
 
@@ -133,6 +138,7 @@ class SuikaEnv(gym.Env):
                             )  # TODO: fix
                         )
                     ),
+                    "cur_fruit": spaces.Discrete(5),
                     "next_fruit": spaces.Discrete(5),  # 0-4 for the next fruit types
                 }
             )
@@ -189,9 +195,11 @@ class SuikaEnv(gym.Env):
             self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
             pygame.display.set_caption(f"Suika Gym - Level {self.level}")
             pygame.font.init()
-            self.scorefont = pygame.font.SysFont("monospace", 32)
-            self.overfont = pygame.font.SysFont("monospace", 72)
-            self.idfont = pygame.font.SysFont("monospace", 12)
+            self.fonts = dict(
+                scorefont=pygame.font.SysFont("monospace", 32),
+                overfont=pygame.font.SysFont("monospace", 72),
+                idfont=pygame.font.SysFont("monospace", 12),
+            )
             self.clock = pygame.time.Clock()
         else:
             self.screen = pygame.Surface((WIDTH, HEIGHT))
@@ -235,22 +243,22 @@ class SuikaEnv(gym.Env):
     def _gen_next_fruit_type(self):
         return self.rng.integers(0, 5)
 
+    def _get_list_board(self):
+        """Get the internal game engine state (positions and radii of particles)"""
+        list_state = []
+        for p in self.fruits:
+            list_state.append(p.state)
+        return list_state
+
+    def _get_image_board(self):
+        return self.render()
+
     def _get_board(self):
-        def get_image_board():
-            return self.render()
-
-        def get_list_board():
-            """Get the internal game engine state (positions and radii of particles)"""
-            list_state = []
-            for p in self.fruits:
-                list_state.append(p.state)
-            return list_state
-
         """Get observation based on level"""
         if self.level in [1, 2]:
-            return get_list_board()
+            return self._get_list_board()
         else:
-            return get_image_board()
+            return self._get_image_board()
 
     def check_game_over(self):
         """Check if game is over (fruit above threshold line with <EPS down vec)"""
@@ -273,8 +281,8 @@ class SuikaEnv(gym.Env):
             "next_fruit": self.next_fruit_type,
         }
 
-    def _get_info(self):
-        return {"score": self.score}
+    def _get_info(self, fruit_states):
+        return {"score": self.score, "fruit_states": fruit_states}
 
     def reset(self, seed=None, options=None):
         """Reset the environment to initial state"""
@@ -297,8 +305,12 @@ class SuikaEnv(gym.Env):
 
         # Create initial observation with repeated frames
         boards = [self._get_board() for _ in range(self.n_frames)]
+        if self.level in [1, 2]:
+            fruit_states = deepcopy(boards)
+        else:
+            fruit_states = [self._get_list_board() for _ in range(self.n_frames)]
         observation = self._get_observation(boards)
-        info = self._get_info()
+        info = self._get_info(fruit_states)
         return observation, info
 
     def step(self, action):
@@ -339,7 +351,16 @@ class SuikaEnv(gym.Env):
 
             # Render during physics simulation if render_mode is set
             if self.render_mode == "human" and t % self.render_interval == 0:
-                self._render_frame_in_pygame_surface(human=True)
+                self._render_frame_in_pygame_surface(
+                    self.screen,
+                    self.fruits,
+                    self.walls,
+                    human=True,
+                    score=self.score,
+                    level=self.level,
+                    gameover=self.game_over,
+                    **self.fonts,
+                )
                 # Display on the screen
                 pygame.display.flip()
                 self.clock.tick(self.render_fps)  # Limit program running speed
@@ -364,55 +385,83 @@ class SuikaEnv(gym.Env):
         terminated = self.game_over
         truncated = False
 
-        info = self._get_info()
+        if self.level in [1, 2]:
+            fruit_states = deepcopy(boards)
+        else:
+            fruit_states = [self._get_list_board() for _ in range(self.n_frames)]
+
+        info = self._get_info(fruit_states)
         return observation, reward, terminated, truncated, info
 
     def render(self):
         """Render the environment"""
-        self._render_frame_in_pygame_surface()
-        scaled_surface = pygame.transform.scale(self.screen, self.image_size)
+        self._render_frame_in_pygame_surface(self.screen, self.fruits, self.walls)
+        # scaled_surface = pygame.transform.scale(self.screen, self.image_size)
 
         # Convert to numpy array
         img_array = np.transpose(
-            np.array(pygame.surfarray.pixels3d(scaled_surface)), axes=(1, 0, 2)
+            np.array(pygame.surfarray.pixels3d(self.screen)), axes=(1, 0, 2)
         )
 
         return img_array
 
-    def _render_frame_in_pygame_surface(self, human=False):
+    def render_states(self, states: list[FruitState]):
+        surface = pygame.Surface(self.image_size)
+
+        img_array = []
+        for board in states:
+            self._render_frame_in_pygame_surface(surface, board, self.walls)
+            img = np.transpose(
+                np.array(pygame.surfarray.pixels3d(surface)), axes=(1, 0, 2)
+            )
+            img_array.append(img)
+        return img_array
+
+    @staticmethod
+    def _render_frame_in_pygame_surface(
+        surface,
+        fruits: list["Fruit | FruitState"],
+        walls,
+        human=False,
+        score=None,
+        level=None,
+        gameover=False,
+        idfont=None,
+        overfont=None,
+        scorefont=None,
+    ):
         """Render a single frame of the environment"""
         # redraw everything if human is fine, won't affect training
 
         # Fill background
-        self.screen.fill(BG_COLOR)
+        surface.fill(BG_COLOR)
 
         # Draw particles - optimization: only draw active ones
-        for p in self.fruits:
-            p.draw(self.screen, label=self.idfont if human else None)
+        for f in fruits:
+            if human:
+                f.draw(surface, font=idfont)
+            else:
+                Fruit.draw_state(surface, **f._asdict())
 
         # Draw walls (after particles due to elasticity)
-        for wall in self.walls:
-            pygame.draw.line(
-                self.screen, WALL_COLOR, wall[1].a, wall[1].b, WALL_THICKNESS
-            )
+        for wall in walls:
+            pygame.draw.line(surface, WALL_COLOR, wall[1].a, wall[1].b, WALL_THICKNESS)
 
         if human:
-            game_over_label = self.overfont.render("Game Over!", 1, (0, 0, 0))
-            self.screen.blit(game_over_label, PAD)
             # Draw score
-            score_label = self.scorefont.render(f"Score: {self.score}", 1, (0, 0, 0))
-            self.screen.blit(score_label, (10, 10))
+            score_label = scorefont.render(f"Score: {score}", 1, (0, 0, 0))
+            surface.blit(score_label, (10, 10))
 
             # Draw level indicator
-            level_label = self.scorefont.render(f"Level: {self.level}", 1, (0, 0, 0))
-            self.screen.blit(level_label, (10, 50))
+            level_label = scorefont.render(f"Level: {level}", 1, (0, 0, 0))
+            surface.blit(level_label, (10, 50))
+            if gameover:
+                game_over_label = overfont.render("Game Over!", 1, (0, 0, 0))
+                surface.blit(game_over_label, PAD)
 
     def close(self):
         """Clean up resources"""
         pygame.quit()
-
-
-FruitState = namedtuple("FruitState", ["pos", "radius", "type"])
 
 
 class Fruit(pymunk.Circle):
@@ -442,28 +491,32 @@ class Fruit(pymunk.Circle):
         cls.id_cnt += 1
         return cls.id_cnt
 
-    def draw(self, screen, label=None):
-        c1 = np.array(COLORS[self.type])
+    @staticmethod
+    def draw_state(screen, pos, radius, type, font=None, id=None):
+        c1 = np.array(COLORS[type])
         c2 = (c1 * 0.8).astype(int)
-        position = self.body.position
-        pygame.draw.circle(screen, tuple(c2), position, self.radius)
-        pygame.draw.circle(screen, tuple(c1), position, self.radius * 0.9)
+        pygame.draw.circle(screen, tuple(c2), pos, radius)
+        pygame.draw.circle(screen, tuple(c1), pos, radius * 0.9)
 
         # Only draw IDs if font is provided - optimization
-        if label is not None:
+        if font is not None:
             # Choose a contrasting color (black or white) based on background color brightness
             brightness = sum(c1) / 3
             text_color = (0, 0, 0) if brightness > 128 else (255, 255, 255)
 
             # Render the ID text
-            id_text = label.render(f"{self.id}", 1, text_color)
+            id_text = font.render(f"{id}", 1, text_color)
 
             # Center the text on the particle
             text_pos = (
-                position[0] - id_text.get_width() // 2,
-                position[1] - id_text.get_height() // 2,
+                pos[0] - id_text.get_width() // 2,
+                pos[1] - id_text.get_height() // 2,
             )
             screen.blit(id_text, text_pos)
+
+    def draw(self, screen, font=None):
+        """Draw the fruit on the given Pygame surface"""
+        self.draw_state(screen, **self.state._asdict(), font=font, id=self.id)
 
     @property
     def pos(self):
@@ -479,7 +532,12 @@ def register_envs():
     for level, game_id in GAME_IDS.items():
         try:
             register(
-                id=game_id, entry_point="suika_gym:SuikaEnv", kwargs={"level": level}
+                id=game_id,
+                entry_point="suika_gym:SuikaEnv",
+                kwargs={
+                    "level": level,
+                    "render_mode": "rgb_array",  # Default render mode for image-based levels
+                },
             )
         except Exception as e:
             print(f"Registration note for level {level}: {e}")
