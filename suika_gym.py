@@ -57,7 +57,7 @@ GAME_IDS = {
 
 
 class SuikaEnv(gym.Env):
-    def __init__(self, n_frames=8, level=1, render_mode="rgb_array", render_fps=60):
+    def __init__(self, n_frames=8, level=1, render_mode=None, render_fps=60):
         """
         Initialize the Suika game environment
 
