@@ -4,28 +4,26 @@ import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3 import SAC
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder
 from wandb.integration.sb3 import WandbCallback
+from stable_baselines3.common.callbacks import BaseCallback
 import wandb
 import torch
 import torch.nn as nn
 import numpy as np
 import datetime
+from collections import deque
+
+# import cv2
 
 config = {
+    "env_name": "suika-game-l1-v0",
     "policy_type": "MultiInputPolicy",
     "total_timesteps": 300000,
     "buffer_size": 500000,
-    "batch_size": 512,
+    "batch_size": 256,
 }
-
-run = wandb.init(
-    project="suika-sb3-sac",
-    name=datetime.datetime.now().strftime("%m-%d_%H-%M"),
-    config=config,
-    sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-    monitor_gym=True,  # auto-upload the videos of agents playing the game
-    settings=wandb.Settings(x_disable_stats=True),
-)
 
 
 class MyCombinedExtractor(BaseFeaturesExtractor):
@@ -93,7 +91,74 @@ class MyCombinedExtractor(BaseFeaturesExtractor):
         )
 
 
-env = CoordSizeToImage(env=SuikaEnv())
+class WandbLoggingCallback(BaseCallback):
+    def __init__(self, eval_env, interval=500, verbose=0):
+        super().__init__(verbose)
+        self.eval_env = eval_env
+        self.interval = interval
+        self.ep_reward = 0
+        self.rewards = deque(maxlen=100)
+
+    def _on_step(self) -> bool:
+        def evaluate():
+            env = self.eval_env
+            obs, info = env.reset()
+            done = False
+            score = 0
+            frames = []
+            while not done:
+                action, _ = self.model.predict(obs, deterministic=True)
+                obs, reward, done, truncated, info = env.step(action)
+                score += reward
+                frames += env.unwrapped.render_states(states=info["fruit_states"])
+            return score, frames
+
+        self.ep_reward += self.locals["rewards"][0]
+        if self.locals["dones"][0]:
+            self.rewards.append(self.ep_reward)
+            self.ep_reward = 0
+
+        if (self.num_timesteps + 1) % self.interval == 0:
+
+            score, frames = evaluate()
+            # resize frames to height 100
+            # h = 100
+            # w = round(frames[0].shape[1] * h / frames[0].shape[0])
+            # frames = [cv2.resize(frame, (h, w)) for frame in frames]
+            frames = np.array(frames)
+            frames = frames.transpose(0, 3, 1, 2)  # Convert to (T, C, H, W) formath
+            print(f"Eval score: {score:.2f}")
+            logs = {
+                "train_score": np.mean(self.rewards) if len(self.rewards) > 0 else 0,
+                "eval_score": score,
+                "actor_loss": self.logger.name_to_value["train/actor_loss"],
+                "critic_loss": self.logger.name_to_value["train/critic_loss"],
+                "ent_coef": self.logger.name_to_value["train/ent_coef"],
+                "video": wandb.Video(
+                    frames,
+                    fps=30,
+                    format="mp4",
+                ),
+            }
+            wandb.log(logs, step=self.num_timesteps)
+        return True
+
+
+run = wandb.init(
+    project="suika-sb3-sac",
+    name=datetime.datetime.now().strftime("%m-%d_%H-%M"),
+    config=config,
+    settings=wandb.Settings(x_disable_stats=True),
+)
+
+
+def make_env():
+    env = gym.make(config["env_name"], render_mode="rgb_array")
+    env = CoordSizeToImage(env=env)
+    return env
+
+
+env = make_env()
 
 policy_kwargs = dict(
     features_extractor_class=MyCombinedExtractor,
@@ -109,14 +174,9 @@ model = SAC(
 )
 model.learn(
     total_timesteps=config["total_timesteps"],
-    log_interval=10,
+    log_interval=100,
     progress_bar=True,
-    callback=WandbCallback(
-        model_save_freq=1000,
-        model_save_path=f"weights/{run.id}",
-        gradient_save_freq=1000,
-        verbose=2,
-    ),
+    callback=WandbLoggingCallback(make_env()),
 )
 # model.save("sac_model")
 run.finish()
