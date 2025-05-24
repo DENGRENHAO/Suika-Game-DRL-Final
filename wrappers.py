@@ -2,7 +2,6 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import cv2
-import torch
 
 N_TYPES = 11
 GRAY_STEP = 255 // (N_TYPES + 1)
@@ -17,7 +16,7 @@ WALL_THICKNESS = 4
 n_frames = 8
 
 
-class CoordSizeToImage(gym.ObservationWrapper):
+class CoordSizeToImage(gym.Wrapper):
     def __init__(self, env, image_size=(96, 96)):
         gym.ObservationWrapper.__init__(self, env)
         self.image_size = image_size
@@ -30,7 +29,7 @@ class CoordSizeToImage(gym.ObservationWrapper):
             image_size[1] - 1 - self.wall_left_offset - WALL_THICKNESS
         )
         self.wall_height_offset = round(SRC_WALL_HEIGHT_OFFSET * self.resize_ratio)
-        self.fruit_left_offset = self.wall_left_offset + WALL_THICKNESS
+        self.fruit_left_offset = self.wall_left_offset + WALL_THICKNESS + 1
         self.observation_space = spaces.Dict(
             {
                 "boards": spaces.Box(
@@ -47,6 +46,10 @@ class CoordSizeToImage(gym.ObservationWrapper):
                 "next_fruit": spaces.Discrete(5),
             }
         )
+
+        self.max_depth = self.image_size[0] - self.wall_height_offset - WALL_THICKNESS
+        self.prev_min_depth = self.max_depth
+        self.prev_mean_depth = self.max_depth
 
     def _transform(self, board):
         return [
@@ -92,19 +95,52 @@ class CoordSizeToImage(gym.ObservationWrapper):
                     image, center=pos, radius=int(r), color=GRAYS[t], thickness=-1
                 )
             images.append(image)
-        # To tensor for RL library
-        observation["boards"] = (
-            torch.from_numpy(np.array(images))
-            .unsqueeze(-1)
-            .permute(0, 3, 1, 2)  # [B,C,H,W]
-        )
 
-        # not needed in SB3 because it converts to one-hot by value
-        observation["cur_fruit"] = torch.tensor(
-            observation["cur_fruit"], dtype=torch.int8
-        )
-        observation["next_fruit"] = torch.tensor(
-            observation["next_fruit"], dtype=torch.int8
-        )
+        observation["boards"] = np.expand_dims(np.array(images), axis=-1).transpose(
+            0, 3, 1, 2
+        )  # [B,C,H,W]
+
+        # SB3 will handle conversion to tensor
 
         return observation
+
+    def shape_reward(self, obs, reward, info):
+        board = obs["boards"][-1].transpose(1, 2, 0).squeeze(-1)  # [C,H,W] -> [H,W]
+        first_nonzeros = np.argmax(board.T != 0, axis=-1)
+        depths = first_nonzeros - self.wall_height_offset
+        depths = depths[self.fruit_left_offset : self.wall_right_offset]
+        min_depth = np.min(depths)
+        mean_depth = np.mean(depths)
+
+        min_depth_delta = min_depth - self.prev_min_depth
+        mean_depth_delta = mean_depth - self.prev_mean_depth
+
+        self.prev_min_depth = min_depth
+        self.prev_mean_depth = mean_depth
+
+        # print(
+        #    f"Depths: {depths}, Min: {min_depth}, Mean: {mean_depth}, "
+        #    f"Delta: {min_depth_delta:.2f}, {mean_depth_delta:.2f}" # )
+        merge_count = info["merge_count"]
+        shaped_reward = (
+            merge_count / 4  # hyperparameter, can be tuned
+            + min_depth_delta / self.max_depth * 2
+            + mean_depth_delta / self.max_depth * 4
+        )
+        # print(f"Shaped reward: {shaped_reward:.2f} (merge_count: {merge_count})")
+        return shaped_reward
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+
+        obs = self.observation(obs)
+        shaped_reward = self.shape_reward(obs, reward, info)
+
+        return obs, shaped_reward, terminated, truncated, info
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        obs = self.observation(obs)
+        self.prev_min_depth = self.max_depth
+        self.prev_mean_depth = self.max_depth
+        return obs, info
