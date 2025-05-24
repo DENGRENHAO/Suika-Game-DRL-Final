@@ -4,9 +4,28 @@ import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3 import SAC
+from wandb.integration.sb3 import WandbCallback
+import wandb
 import torch
 import torch.nn as nn
 import numpy as np
+import datetime
+
+config = {
+    "policy_type": "MultiInputPolicy",
+    "total_timesteps": 300000,
+    "buffer_size": 500000,
+    "batch_size": 512,
+}
+
+run = wandb.init(
+    project="suika-sb3-sac",
+    name=datetime.datetime.now().strftime("%m-%d_%H-%M"),
+    config=config,
+    sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+    monitor_gym=True,  # auto-upload the videos of agents playing the game
+    settings=wandb.Settings(x_disable_stats=True),
+)
 
 
 class MyCombinedExtractor(BaseFeaturesExtractor):
@@ -78,16 +97,26 @@ env = CoordSizeToImage(env=SuikaEnv())
 
 policy_kwargs = dict(
     features_extractor_class=MyCombinedExtractor,
-    # features_extractor_kwargs={"observation_space": env.observation_space},
 )
 
 model = SAC(
-    "MultiInputPolicy",
+    config["policy_type"],
     env,
     policy_kwargs=policy_kwargs,
     verbose=1,
-    buffer_size=500_000,
-    batch_size=256,
+    buffer_size=config["buffer_size"],
+    batch_size=config["batch_size"],
 )
-model.learn(total_timesteps=100_000)
-model.save("sac_model")
+model.learn(
+    total_timesteps=config["total_timesteps"],
+    log_interval=10,
+    progress_bar=True,
+    callback=WandbCallback(
+        model_save_freq=1000,
+        model_save_path=f"weights/{run.id}",
+        gradient_save_freq=1000,
+        verbose=2,
+    ),
+)
+# model.save("sac_model")
+run.finish()
