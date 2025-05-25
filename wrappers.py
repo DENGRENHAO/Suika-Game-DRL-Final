@@ -13,12 +13,11 @@ SRC_WALL_HEIGHT_OFFSET = 130
 SRC_BOARD_CROPPED_SIZE = (709, 508)
 WALL_THICKNESS = 4
 
-n_frames = 8
-
 
 class CoordSizeToImage(gym.ObservationWrapper):
     def __init__(self, env, image_size=(96, 96)):
         gym.ObservationWrapper.__init__(self, env)
+        self.n_frames = env.unwrapped.n_frames
         self.image_size = image_size
         self.resize_ratio = (96 - WALL_THICKNESS) / SRC_BOARD_CROPPED_SIZE[0]
         board_width = (
@@ -35,7 +34,7 @@ class CoordSizeToImage(gym.ObservationWrapper):
                     low=0,
                     high=255,
                     shape=(
-                        n_frames,
+                        self.n_frames,
                         1,
                         *image_size,
                     ),
@@ -99,7 +98,7 @@ class CoordSizeToImage(gym.ObservationWrapper):
 
         observation["boards"] = (
             np.array(images)
-            .reshape(n_frames, 1, *self.image_size)  # [B,C,H,W]
+            .reshape(self.n_frames, 1, *self.image_size)  # [B,C,H,W]
             .astype(np.uint8)
         )
         # observation["boards"] = (
