@@ -6,6 +6,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 from suika_gym import SuikaEnv
+from wrappers import CoordSizeToImage
 from agents.base_agent import Agent  # Import the base Agent class
 
 
@@ -40,8 +41,7 @@ class RandomAgent(Agent):
 # The following block demonstrates how to run the RandomAgent.
 if __name__ == "__main__":
     print("Running RandomAgent example...")
-    # Use render_mode="human" to visualize, or None for no rendering
-    env = SuikaEnv(render_mode="human")
+    env = CoordSizeToImage(SuikaEnv(level=1))
 
     obs, info = env.reset()
     agent = RandomAgent(env.action_space)
