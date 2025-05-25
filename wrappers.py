@@ -107,9 +107,6 @@ class CoordSizeToImage(gym.Wrapper):
         )
 
         # SB3 will handle conversion to tensor
-        print(observation["boards"].shape)
-        print(observation["cur_fruit"])
-        print(observation["next_fruit"])
 
         return observation
 
