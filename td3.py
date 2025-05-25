@@ -3,7 +3,7 @@ from wrappers import CoordSizeToImage
 import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-from stable_baselines3 import SAC
+from stable_baselines3 import TD3
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder
 from wandb.integration.sb3 import WandbCallback
@@ -24,7 +24,6 @@ config = {
     "total_timesteps": 500000,
     "buffer_size": 50000,
     "batch_size": 128,
-    "learning_rate": 3e-4,
     "learning_starts": 10000,
 }
 
@@ -63,7 +62,6 @@ class WandbLoggingCallback(BaseCallback):
                 "train_scores": np.mean(self.scores) if len(self.scores) > 0 else 0,
                 "actor_loss": self.logger.name_to_value["train/actor_loss"],
                 "critic_loss": self.logger.name_to_value["train/critic_loss"],
-                "ent_coef": self.logger.name_to_value["train/ent_coef"],
             }
             if (self.num_timesteps + 1) % self.eval_interval == 0:
                 score, frames = evaluate()
@@ -81,7 +79,7 @@ class WandbLoggingCallback(BaseCallback):
 
 
 run = wandb.init(
-    project="suika-sb3-sac",
+    project="suika-sb3-td3",
     name=datetime.datetime.now().strftime("%m-%d_%H-%M"),
     config=config,
     settings=wandb.Settings(x_disable_stats=True),
@@ -100,15 +98,14 @@ policy_kwargs = dict(
     features_extractor_class=MyCombinedExtractor,
 )
 
-model = SAC(
+model = TD3(
     config["policy_type"],
     env,
     policy_kwargs=policy_kwargs,
     verbose=1,
     buffer_size=config["buffer_size"],
     batch_size=config["batch_size"],
-    learning_rate=config["learning_rate"],
-    learning_starts=config["learning_starts"],
+    learning_starts=10000,
 )
 model.learn(
     total_timesteps=config["total_timesteps"],
