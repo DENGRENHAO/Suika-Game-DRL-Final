@@ -21,15 +21,14 @@ class CoordSizeToImage(gym.ObservationWrapper):
         gym.ObservationWrapper.__init__(self, env)
         self.image_size = image_size
         self.resize_ratio = (96 - WALL_THICKNESS) / SRC_BOARD_CROPPED_SIZE[0]
-        self.wall_left_offset = (
-            round((image_size[1] - SRC_BOARD_CROPPED_SIZE[1] * self.resize_ratio) / 2)
-            - WALL_THICKNESS
-        )
-        self.wall_right_offset = (
-            image_size[1] - 1 - self.wall_left_offset - WALL_THICKNESS
-        )
+        board_width = (
+            round(SRC_BOARD_CROPPED_SIZE[1] * self.resize_ratio) + WALL_THICKNESS * 2
+        )  # 74
+        horizontal_offset = (image_size[1] - board_width) // 2
+        self.horizontal_wall_thickness = horizontal_offset + WALL_THICKNESS
+        # [0, (horizontal_wall_thickness - 1)] for wall
+        self.fruit_horizontal_offset = self.horizontal_wall_thickness
         self.wall_height_offset = round(SRC_WALL_HEIGHT_OFFSET * self.resize_ratio)
-        self.fruit_left_offset = self.wall_left_offset + WALL_THICKNESS
         self.observation_space = spaces.Dict(
             {
                 "boards": spaces.Box(
@@ -52,7 +51,7 @@ class CoordSizeToImage(gym.ObservationWrapper):
             (
                 (
                     round((pos[0] - SRC_BOARD_OFFSET[0]) * self.resize_ratio)
-                    + self.fruit_left_offset,
+                    + self.fruit_horizontal_offset,
                     round((pos[1] - SRC_BOARD_OFFSET[1]) * self.resize_ratio),
                 ),
                 r * self.resize_ratio,
@@ -65,24 +64,30 @@ class CoordSizeToImage(gym.ObservationWrapper):
         images = []
         for board in observation["boards"]:
             image = np.zeros(self.image_size, dtype=np.uint8)
+            # left wall
             cv2.rectangle(
                 image,
                 (0, self.wall_height_offset),
-                (self.wall_left_offset + WALL_THICKNESS, self.image_size[0]),
+                (self.horizontal_wall_thickness - 1, self.image_size[0] - 1),
                 255,
                 -1,
             )
+            # right wall
             cv2.rectangle(
                 image,
-                (self.wall_right_offset, self.wall_height_offset),
-                (self.image_size[1], self.image_size[0]),
+                (
+                    self.image_size[1] - self.horizontal_wall_thickness,
+                    self.wall_height_offset,
+                ),
+                (self.image_size[1] - 1, self.image_size[0] - 1),
                 255,
                 -1,
             )
+            # bottom wall
             cv2.rectangle(
                 image,
-                (self.wall_left_offset, self.image_size[1] - WALL_THICKNESS),
-                (self.wall_right_offset + WALL_THICKNESS, self.image_size[1]),
+                (0, self.image_size[0] - WALL_THICKNESS),
+                (self.image_size[1], self.image_size[0] - 1),
                 255,
                 -1,
             )
@@ -91,7 +96,7 @@ class CoordSizeToImage(gym.ObservationWrapper):
                     image, center=pos, radius=int(r), color=GRAYS[t], thickness=-1
                 )
             images.append(image)
-        # To tensor for RL library
+
         observation["boards"] = (
             np.array(images)
             .reshape(n_frames, 1, *self.image_size)  # [B,C,H,W]
