@@ -55,12 +55,15 @@ class MyCombinedExtractor(BaseFeaturesExtractor):
         #    print(observations["cur_fruit"].shape)
         # (64, 1, 5) or (1, 5)
         if len(observations["cur_fruit"].shape) == 2:
-            observations["cur_fruit"] = observations["cur_fruit"].unsqueeze(0)
-            observations["next_fruit"] = observations["next_fruit"].unsqueeze(0)
+            observations["cur_fruit"] = observations["cur_fruit"].unsqueeze(1)
+            observations["next_fruit"] = observations["next_fruit"].unsqueeze(1)
         cur_fruit = (
             torch.argmax(observations["cur_fruit"], dim=-1) + 1
         ) / 5  # +1 to align with gray values, and normalize to [0,1]
         next_fruit = (torch.argmax(observations["next_fruit"], dim=-1) + 1) / 5
+        # print(
+        #    f"cur_fruit: {observations['cur_fruit'].shape}, next_fruit: {observations['next_fruit'].shape}"
+        # )
 
         return self.final(
             torch.cat(
