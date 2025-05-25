@@ -2,7 +2,6 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import cv2
-import torch
 
 N_TYPES = 11
 GRAY_STEP = 255 // (N_TYPES + 1)
@@ -94,17 +93,22 @@ class CoordSizeToImage(gym.ObservationWrapper):
             images.append(image)
         # To tensor for RL library
         observation["boards"] = (
-            torch.from_numpy(np.array(images))
-            .unsqueeze(-1)
-            .permute(0, 3, 1, 2)  # [B,C,H,W]
+            np.array(images)
+            .reshape(n_frames, 1, *self.image_size)  # [B,C,H,W]
+            .astype(np.uint8)
         )
-
-        # not needed in SB3 because it converts to one-hot by value
-        observation["cur_fruit"] = torch.tensor(
-            observation["cur_fruit"], dtype=torch.int8
-        )
-        observation["next_fruit"] = torch.tensor(
-            observation["next_fruit"], dtype=torch.int8
-        )
+        # observation["boards"] = (
+        #    torch.from_numpy(np.array(images))
+        #    .unsqueeze(-1)
+        #    .permute(0, 3, 1, 2)  # [B,C,H,W]
+        # )
+        #
+        ## not needed in SB3 because it converts to one-hot by value
+        # observation["cur_fruit"] = torch.tensor(
+        #    observation["cur_fruit"], dtype=torch.int8
+        # )
+        # observation["next_fruit"] = torch.tensor(
+        #    observation["next_fruit"], dtype=torch.int8
+        # )
 
         return observation
