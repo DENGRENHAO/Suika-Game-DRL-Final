@@ -12,6 +12,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 from suika_gym import SuikaEnv
+from wrappers import CoordSizeToImage
 from agents.base_agent import Agent  # Import the base Agent class
 
 # Files to exclude from agent discovery (add script's own name dynamically later)
@@ -82,7 +83,7 @@ def run_evaluation_for_agent(
     print(f"\n--- Evaluating: {agent_name} ---")
 
     try:
-        env = SuikaEnv(render_mode=env_render_mode)
+        env = CoordSizeToImage(SuikaEnv(level=1))
     except Exception as e:
         print(f"  Error initializing environment for {agent_name}: {e}")
         return None, None
@@ -121,16 +122,7 @@ def run_evaluation_for_agent(
 
     for episode in range(num_episodes):
         try:
-            reset_result = env.reset()
-            if (
-                isinstance(reset_result, tuple)
-                and len(reset_result) == 2
-                and isinstance(reset_result[1], dict)
-            ):
-                obs, info = reset_result
-            else:
-                obs = reset_result
-
+            obs, info = env.reset()
             done = False
             total_reward = 0
             current_episode_length = 0
