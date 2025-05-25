@@ -13,30 +13,28 @@ SRC_WALL_HEIGHT_OFFSET = 130
 SRC_BOARD_CROPPED_SIZE = (709, 508)
 WALL_THICKNESS = 4
 
-n_frames = 8
-
 
 class CoordSizeToImage(gym.Wrapper):
     def __init__(self, env, image_size=(96, 96)):
         gym.ObservationWrapper.__init__(self, env)
+        self.n_frames = env.unwrapped.n_frames
         self.image_size = image_size
         self.resize_ratio = (96 - WALL_THICKNESS) / SRC_BOARD_CROPPED_SIZE[0]
-        self.wall_left_offset = (
-            round((image_size[1] - SRC_BOARD_CROPPED_SIZE[1] * self.resize_ratio) / 2)
-            - WALL_THICKNESS
-        )
-        self.wall_right_offset = (
-            image_size[1] - 1 - self.wall_left_offset - WALL_THICKNESS
-        )
+        board_width = (
+            round(SRC_BOARD_CROPPED_SIZE[1] * self.resize_ratio) + WALL_THICKNESS * 2
+        )  # 74
+        horizontal_offset = (image_size[1] - board_width) // 2
+        self.horizontal_wall_thickness = horizontal_offset + WALL_THICKNESS
+        # [0, (horizontal_wall_thickness - 1)] for wall
+        self.fruit_horizontal_offset = self.horizontal_wall_thickness
         self.wall_height_offset = round(SRC_WALL_HEIGHT_OFFSET * self.resize_ratio)
-        self.fruit_left_offset = self.wall_left_offset + WALL_THICKNESS + 1
         self.observation_space = spaces.Dict(
             {
                 "boards": spaces.Box(
                     low=0,
                     high=255,
                     shape=(
-                        n_frames,
+                        self.n_frames,
                         1,
                         *image_size,
                     ),
@@ -56,7 +54,7 @@ class CoordSizeToImage(gym.Wrapper):
             (
                 (
                     round((pos[0] - SRC_BOARD_OFFSET[0]) * self.resize_ratio)
-                    + self.fruit_left_offset,
+                    + self.fruit_horizontal_offset,
                     round((pos[1] - SRC_BOARD_OFFSET[1]) * self.resize_ratio),
                 ),
                 r * self.resize_ratio,
@@ -69,24 +67,30 @@ class CoordSizeToImage(gym.Wrapper):
         images = []
         for board in observation["boards"]:
             image = np.zeros(self.image_size, dtype=np.uint8)
+            # left wall
             cv2.rectangle(
                 image,
                 (0, self.wall_height_offset),
-                (self.wall_left_offset + WALL_THICKNESS, self.image_size[0]),
+                (self.horizontal_wall_thickness - 1, self.image_size[0] - 1),
                 255,
                 -1,
             )
+            # right wall
             cv2.rectangle(
                 image,
-                (self.wall_right_offset, self.wall_height_offset),
-                (self.image_size[1], self.image_size[0]),
+                (
+                    self.image_size[1] - self.horizontal_wall_thickness,
+                    self.wall_height_offset,
+                ),
+                (self.image_size[1] - 1, self.image_size[0] - 1),
                 255,
                 -1,
             )
+            # bottom wall
             cv2.rectangle(
                 image,
-                (self.wall_left_offset, self.image_size[1] - WALL_THICKNESS),
-                (self.wall_right_offset + WALL_THICKNESS, self.image_size[1]),
+                (0, self.image_size[0] - WALL_THICKNESS),
+                (self.image_size[1], self.image_size[0] - 1),
                 255,
                 -1,
             )
@@ -96,11 +100,16 @@ class CoordSizeToImage(gym.Wrapper):
                 )
             images.append(image)
 
-        observation["boards"] = np.expand_dims(np.array(images), axis=-1).transpose(
-            0, 3, 1, 2
-        )  # [B,C,H,W]
+        observation["boards"] = (
+            np.array(images)
+            .reshape(self.n_frames, 1, *self.image_size)  # [B,C,H,W]
+            .astype(np.uint8)
+        )
 
         # SB3 will handle conversion to tensor
+        print(observation["boards"].shape)
+        print(observation["cur_fruit"])
+        print(observation["next_fruit"])
 
         return observation
 
@@ -108,7 +117,11 @@ class CoordSizeToImage(gym.Wrapper):
         board = obs["boards"][-1].transpose(1, 2, 0).squeeze(-1)  # [C,H,W] -> [H,W]
         first_nonzeros = np.argmax(board.T != 0, axis=-1)
         depths = first_nonzeros - self.wall_height_offset
-        depths = depths[self.fruit_left_offset : self.wall_right_offset]
+        depths = depths[
+            self.fruit_horizontal_offset : (
+                self.image_size[1] - self.horizontal_wall_thickness - 1
+            )
+        ]
         min_depth = np.min(depths)
         mean_depth = np.mean(depths)
 
