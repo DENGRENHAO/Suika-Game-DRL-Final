@@ -110,7 +110,7 @@ class CoordSizeToImage(gym.Wrapper):
         return observation
 
     def shape_reward(self, obs, reward, info):
-        board = obs["boards"][-1].transpose(1, 2, 0).squeeze(-1)  # [C,H,W] -> [H,W]
+        board = obs["boards"][-1]
         first_nonzeros = np.argmax(board.T != 0, axis=-1)
         depths = first_nonzeros - self.wall_height_offset
         depths = depths[
