@@ -1,3 +1,10 @@
+import sys
+import os
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -7,7 +14,8 @@ import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 import sys
 import os
-from base_agent import Agent
+
+from agents.base_agent import Agent
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
@@ -196,6 +204,8 @@ class SACAgent(Agent):
             batch_size=BATCH_SIZE
         )
 
+        self.load("models/sac_agent")
+
     def update(self):
         # Check if buffer has enough samples
         batch = self.replay_buffer.sample()
@@ -261,7 +271,9 @@ class SACAgent(Agent):
         return actor_loss.item(), critic_loss.item(), self.log_alpha.exp().item()
 
 
-    def select_action(self, image_tensor, fruit_obs_id, deterministic=False):
+    def select_action(self, obs, deterministic=True):
+        obs['boards'] = obs['boards'][0]
+        image_tensor, fruit_obs_id = obs['boards'], obs['cur_fruit']
         image_tensor = image_tensor.unsqueeze(0).to(device).float() / 255.0
         fruit_tensor = torch.tensor([fruit_obs_id], dtype=torch.long, device=device) # (1,) - Correct for embedding
 
@@ -292,18 +304,15 @@ if __name__ == "__main__":
     env = CoordSizeToImage(SuikaEnv(level=1))
 
     obs, info = env.reset()
-    obs['boards'] = obs['boards'][0]
     agent = SACAgent()
-    agent.load("../models/sac_agent")
 
     done = False
     total_reward = 0
     episode_length = 0
 
     while not done:
-        action = agent.select_action(obs['boards'], obs['cur_fruit'])
+        action = agent.select_action(obs)
         obs, reward, terminated, truncated, info = env.step(action)
-        obs['boards'] = obs['boards'][0]
         total_reward += reward
         episode_length += 1
         done = terminated or truncated
