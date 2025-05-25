@@ -22,7 +22,7 @@ config = {
     "policy_type": "MultiInputPolicy",
     "total_timesteps": 300000,
     "buffer_size": 500000,
-    "batch_size": 512,
+    "batch_size": 256,
 }
 
 
@@ -43,6 +43,10 @@ class MyCombinedExtractor(BaseFeaturesExtractor):
             nn.Flatten(),
         )
 
+        for layer in self.cnn:
+            if isinstance(layer, nn.Conv2d):
+                torch.nn.init.xavier_uniform_(layer.weight)
+
         # Compute CNN output dim
         with torch.no_grad():
             sample_frame = torch.zeros((1, *frames_shape[1:]))
@@ -51,14 +55,14 @@ class MyCombinedExtractor(BaseFeaturesExtractor):
         # Process sequence of frames
         self.frame_proj = nn.Sequential(
             nn.Flatten(start_dim=1),
-            nn.Linear(n_frames * cnn_out_dim, 256),
+            nn.Linear(n_frames * cnn_out_dim, 512),
             nn.ReLU(),
         )
 
         # Final projection
-        self.final = nn.Sequential(nn.Linear(256 + 1 + 1, 256), nn.ReLU())
+        self.final = nn.Sequential(nn.Linear(512 + 1 + 1, 512), nn.ReLU())
 
-        self._features_dim = 256
+        self._features_dim = 512
 
     def forward(self, observations):
         frames = observations["boards"].float() / 255.0  # normalize to [0,1]
@@ -75,9 +79,9 @@ class MyCombinedExtractor(BaseFeaturesExtractor):
             observations["cur_fruit"] = observations["cur_fruit"].unsqueeze(0)
             observations["next_fruit"] = observations["next_fruit"].unsqueeze(0)
         cur_fruit = (
-            torch.argmax(observations["cur_fruit"], dim=-1)
-        ) + 1  # +1 to align with gray values
-        next_fruit = torch.argmax(observations["next_fruit"], dim=-1) + 1
+            torch.argmax(observations["cur_fruit"], dim=-1) + 1
+        ) / 5  # +1 to align with gray values, and normalize to [0,1]
+        next_fruit = (torch.argmax(observations["next_fruit"], dim=-1) + 1) / 5
 
         return self.final(
             torch.cat(
