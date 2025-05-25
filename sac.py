@@ -22,7 +22,7 @@ config = {
     "policy_type": "MultiInputPolicy",
     "total_timesteps": 300000,
     "buffer_size": 500000,
-    "batch_size": 256,
+    "batch_size": 512,
 }
 
 
@@ -99,6 +99,7 @@ class WandbLoggingCallback(BaseCallback):
         self.eval_interval = log_interval * 10
         self.ep_reward = 0
         self.rewards = deque(maxlen=100)
+        self.scores = deque(maxlen=100)
 
     def _on_step(self) -> bool:
         def evaluate():
@@ -117,11 +118,13 @@ class WandbLoggingCallback(BaseCallback):
         self.ep_reward += self.locals["rewards"][0]
         if self.locals["dones"][0]:
             self.rewards.append(self.ep_reward)
+            self.scores.append(self.locals["infos"][0]["score"])
             self.ep_reward = 0
 
         if (self.num_timesteps + 1) % self.interval == 0:
             logs = {
-                "train_score": np.mean(self.rewards) if len(self.rewards) > 0 else 0,
+                "train_reward": np.mean(self.rewards) if len(self.rewards) > 0 else 0,
+                "train_scores": np.mean(self.scores) if len(self.scores) > 0 else 0,
                 "actor_loss": self.logger.name_to_value["train/actor_loss"],
                 "critic_loss": self.logger.name_to_value["train/critic_loss"],
                 "ent_coef": self.logger.name_to_value["train/ent_coef"],
