@@ -110,14 +110,12 @@ class WandbLoggingCallback(BaseCallback):
             env = self.eval_env
             obs, info = env.reset()
             done = False
-            score = 0
             frames = []
             while not done:
                 action, _ = self.model.predict(obs, deterministic=True)
                 obs, reward, done, truncated, info = env.step(action)
-                score += reward
                 frames += env.unwrapped.render_states(states=info["fruit_states"])
-            return score, frames
+            return info["score"], frames
 
         self.ep_reward += self.locals["rewards"][0]
         if self.locals["dones"][0]:
