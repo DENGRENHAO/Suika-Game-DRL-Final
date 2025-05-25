@@ -198,6 +198,7 @@ class SuikaEnv(gym.Env):
             self.clock = pygame.time.Clock()
         else:
             self.screen = pygame.Surface((WIDTH, HEIGHT))
+            self.idfont = None
 
     def _remove_fruit(self, fruit: "Fruit"):
         fruit.removed = True
