@@ -8,7 +8,7 @@ from utils import set_seeds, make_env
 config = {
     "env_name": "suika-game-l1-v0",
     "policy_type": "MultiInputPolicy",
-    "total_timesteps": 800000,
+    "total_timesteps": 600000,
     "buffer_size": 50000,
     "batch_size": 128,
     "learning_rate": 3e-4,
