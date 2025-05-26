@@ -1,10 +1,9 @@
-from wrappers import CoordSizeToImage
-import gymnasium as gym
 from stable_baselines3 import SAC
 import wandb
 import datetime
 from feature_extractor import MyCombinedExtractor
 from wandb_callback import WandbLoggingCallback
+from utils import set_seeds, make_env
 
 config = {
     "env_name": "suika-game-l1-v0",
@@ -19,7 +18,11 @@ config = {
         "train/critic_loss",
         "train/ent_coef",
     ],
+    "seed": 42,
 }
+
+set_seeds(config["seed"])
+
 id = datetime.datetime.now().strftime("%m-%d_%H-%M")
 run = wandb.init(
     project="suika-sb3-sac",
@@ -29,13 +32,7 @@ run = wandb.init(
 )
 
 
-def make_env():
-    env = gym.make(config["env_name"], render_mode="rgb_array")
-    env = CoordSizeToImage(env=env)
-    return env
-
-
-env = make_env()
+env = make_env(config["env_name"], config["seed"])
 
 policy_kwargs = dict(
     features_extractor_class=MyCombinedExtractor,
@@ -50,13 +47,14 @@ model = SAC(
     batch_size=config["batch_size"],
     learning_rate=config["learning_rate"],
     learning_starts=config["learning_starts"],
+    seed=config["seed"],
 )
 model.learn(
     total_timesteps=config["total_timesteps"],
     log_interval=10,  # episode
     progress_bar=True,
     callback=WandbLoggingCallback(
-        eval_env=make_env(),
+        eval_env=make_env(config["env_name"], config["seed"]),
         save_dir=f"weights/sb3_sac/{id}",
         log_interval=500,
         log_entries=config["log_entries"],
