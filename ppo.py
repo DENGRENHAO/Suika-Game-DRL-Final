@@ -21,7 +21,7 @@ from feature_extractor import MyCombinedExtractor
 config = {
     "env_name": "suika-game-l1-v0",
     "policy_type": "MultiInputPolicy",
-    "total_timesteps": 1000000,
+    "total_timesteps": 3000000,
     "batch_size": 64,
 }
 
