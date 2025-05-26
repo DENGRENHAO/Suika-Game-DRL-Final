@@ -62,7 +62,9 @@ FruitState = namedtuple("FruitState", ["pos", "radius", "type"])
 class SuikaEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
 
-    def __init__(self, n_frames=8, level=1, render_mode="rgb_array", render_fps=60):
+    def __init__(
+        self, n_frames=8, level=1, render_mode="rgb_array", render_fps=60, seed=None
+    ):
         """
         Initialize the Suika game environment
 
@@ -107,7 +109,7 @@ class SuikaEnv(gym.Env):
         self._init_render()
 
         # Initialize other environment variables
-        self.rng = np.random.default_rng()
+        self.rng = np.random.default_rng(seed=seed)
         self.shape_to_particle: dict[pymunk.Shape, Fruit] = {}
         self.fruits: list[Fruit] = []
         self.score = 0
