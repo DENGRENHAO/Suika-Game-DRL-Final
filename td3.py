@@ -1,23 +1,10 @@
-from suika_gym import SuikaEnv
 from wrappers import CoordSizeToImage
 import gymnasium as gym
-from gymnasium import spaces
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3 import TD3
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder
-from wandb.integration.sb3 import WandbCallback
-from stable_baselines3.common.callbacks import BaseCallback
 import wandb
-import torch
-import torch.nn as nn
-import numpy as np
 import datetime
-from collections import deque
 from feature_extractor import MyCombinedExtractor
 from wandb_callback import WandbLoggingCallback
-
-# import cv2
 
 config = {
     "env_name": "suika-game-l1-v0",
