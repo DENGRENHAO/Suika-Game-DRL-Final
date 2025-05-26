@@ -5,7 +5,8 @@ from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3 import SAC
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder
+from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder, SubprocVecEnv
+from multiprocessing import freeze_support
 from wandb.integration.sb3 import WandbCallback
 from stable_baselines3.common.callbacks import BaseCallback
 import wandb
@@ -43,16 +44,30 @@ run = wandb.init(
 
 
 def make_env():
-    env = gym.make(config["env_name"], render_mode="rgb_array")
-    env = CoordSizeToImage(env=env)
-    return env
+    NUM_ENVS = 4
+    def _init():
+        env = gym.make(config["env_name"], render_mode="rgb_array")
+        env = CoordSizeToImage(env=env)
+        env = Monitor(env)
+        return env
+    return SubprocVecEnv([_init for _ in range(NUM_ENVS)])
 
+def make_single_env():
+    def _init():
+        env = gym.make(config["env_name"], render_mode="rgb_array")
+        env = CoordSizeToImage(env)
+        env = Monitor(env)
+        return env
+    return DummyVecEnv([_init])
 
-env = make_env()
+if __name__ == "__main__":
+    freeze_support()
+    train_env = make_single_env()
+    eval_env = make_single_env()
 
-policy_kwargs = dict(
-    features_extractor_class=MyCombinedExtractor,
-)
+    policy_kwargs = dict(
+        features_extractor_class=MyCombinedExtractor,
+    )
 
 model = SAC(
     config["policy_type"],

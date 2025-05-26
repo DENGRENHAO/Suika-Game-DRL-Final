@@ -3,3 +3,8 @@ pymunk==6.11.1
 gymnasium==1.1.1
 numpy==2.2.5
 pillow==11.2.1
+opencv-python
+stable-baselines3
+stable-baselines3[extra]
+wandb
+wandb[media]
