@@ -15,6 +15,7 @@ import numpy as np
 import datetime
 from collections import deque
 from feature_extractor import MyCombinedExtractor
+from wandb_callback import WandbLoggingCallback
 
 # import cv2
 
@@ -25,58 +26,10 @@ config = {
     "batch_size": 64,
 }
 
-
-class WandbLoggingCallback(BaseCallback):
-    def __init__(self, eval_env, log_interval=500, verbose=0):
-        super().__init__(verbose)
-        self.eval_env = eval_env
-        self.interval = log_interval
-        self.eval_interval = log_interval * 10
-        self.ep_reward = 0
-        self.rewards = deque(maxlen=100)
-        self.scores = deque(maxlen=100)
-
-    def _on_step(self) -> bool:
-        def evaluate():
-            env = self.eval_env
-            obs, info = env.reset()
-            done = False
-            frames = []
-            while not done:
-                action, _ = self.model.predict(obs, deterministic=True)
-                obs, reward, done, truncated, info = env.step(action)
-                frames += env.unwrapped.render_states(states=info["fruit_states"])
-            return info["score"], frames
-
-        self.ep_reward += self.locals["rewards"][0]
-        if self.locals["dones"][0]:
-            self.rewards.append(self.ep_reward)
-            self.scores.append(self.locals["infos"][0]["score"])
-            self.ep_reward = 0
-
-        if (self.num_timesteps + 1) % self.interval == 0:
-            logs = {
-                "train_reward": np.mean(self.rewards) if len(self.rewards) > 0 else 0,
-                "train_scores": np.mean(self.scores) if len(self.scores) > 0 else 0,
-            }
-            if (self.num_timesteps + 1) % self.eval_interval == 0:
-                score, frames = evaluate()
-                print(f"Step {self.num_timesteps} eval score: {score:.2f}")
-                frames = np.array(frames)
-                frames = frames.transpose(0, 3, 1, 2)  # Convert to (T, C, H, W) formath
-                logs["eval_score"] = score
-                logs["video"] = wandb.Video(
-                    frames,
-                    fps=30,
-                    format="mp4",
-                )
-            wandb.log(logs, step=self.num_timesteps)
-        return True
-
-
+id = datetime.datetime.now().strftime("%m-%d_%H-%M")
 run = wandb.init(
     project="suika-sb3-ppo",
-    name=datetime.datetime.now().strftime("%m-%d_%H-%M"),
+    name=id,
     config=config,
     settings=wandb.Settings(x_disable_stats=True),
 )
@@ -103,9 +56,13 @@ model = PPO(
 )
 model.learn(
     total_timesteps=config["total_timesteps"],
-    log_interval=1,  # episode
+    log_interval=10,  # episode
     progress_bar=True,
-    callback=WandbLoggingCallback(make_env()),
+    callback=WandbLoggingCallback(
+        eval_env=make_env(),
+        save_dir=f"weights/sb3_ppo/{id}",
+        log_interval=1000,
+        verbose=1,
+    ),
 )
-# model.save("sac_model")
 run.finish()
