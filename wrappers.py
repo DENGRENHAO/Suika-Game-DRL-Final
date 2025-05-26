@@ -6,7 +6,8 @@ import cv2
 N_TYPES = 11
 GRAY_STEP = 255 // (N_TYPES + 1)
 BG_GRAY = 0
-GRAYS = [n * GRAY_STEP for n in range(1, N_TYPES)]
+GRAYS = [n * GRAY_STEP for n in range(1, N_TYPES + 1)]
+assert len(GRAYS) == N_TYPES
 
 SRC_BOARD_OFFSET = (30, 31)
 SRC_WALL_HEIGHT_OFFSET = 130
