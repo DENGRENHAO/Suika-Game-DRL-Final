@@ -44,7 +44,7 @@ POINTS = [1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66]
 DAMPING = 0.2  # Lower to decrease the time it takes for space to be stable
 FRUIT_COLLECTION_TYPE = 1
 
-FPS = 120
+FPS = 200
 PHYSICS_STEP_SIZE = 0.01
 GAMEOVER_MIN_VEC = 0.1
 
@@ -82,7 +82,7 @@ class SuikaEnv(gym.Env):
             raise ValueError("num_frames > FPS")
 
         if FPS % n_frames != 0:
-            raise ValueError("FPS % num_frames != 0")
+            raise ValueError(f"FPS ({FPS}) % n_frames ({n_frames}) != 0")
 
         if level not in [1, 2, 3, 4]:
             raise ValueError(f"Invalid level: {self.level}. Must be 1, 2, 3, or 4.")
