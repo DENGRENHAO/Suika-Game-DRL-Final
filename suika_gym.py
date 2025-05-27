@@ -347,7 +347,7 @@ class SuikaEnv(gym.Env):
         )
         self.fruits.append(cur_fruit)
 
-        # update fruit types
+        # update fruit types, current fruit has been dropped
         self.cur_fruit_type = self.next_fruit_type
         self.next_fruit_type = self._gen_next_fruit_type()
 
