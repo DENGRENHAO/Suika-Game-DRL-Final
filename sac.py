@@ -19,6 +19,7 @@ config = {
         "train/ent_coef",
     ],
     "seed": 42,
+    "n_frames": 8,
 }
 
 set_seeds(config["seed"])
@@ -32,7 +33,7 @@ run = wandb.init(
 )
 
 
-env = make_env(config["env_name"], config["seed"])
+env = make_env(config["env_name"], config["seed"], n_frames=config["n_frames"])
 
 policy_kwargs = dict(
     features_extractor_class=MyCombinedExtractor,
@@ -54,7 +55,9 @@ model.learn(
     log_interval=10,  # episode
     progress_bar=True,
     callback=WandbLoggingCallback(
-        eval_env=make_env(config["env_name"], config["seed"]),
+        eval_env=make_env(
+            config["env_name"], config["seed"], n_frames=config["n_frames"]
+        ),
         save_dir=f"weights/sb3_sac/{id}",
         log_interval=500,
         log_entries=config["log_entries"],
