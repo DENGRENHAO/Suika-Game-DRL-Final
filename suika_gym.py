@@ -347,10 +347,6 @@ class SuikaEnv(gym.Env):
         )
         self.fruits.append(cur_fruit)
 
-        # update fruit types
-        self.cur_fruit_type = self.next_fruit_type
-        self.next_fruit_type = self._gen_next_fruit_type()
-
         # Run physics for a fixed amount of time
         boards = []
         self.merge_score = 0
@@ -403,6 +399,11 @@ class SuikaEnv(gym.Env):
             fruit_states = [self._get_list_board() for _ in range(self.n_frames)]
 
         info = self._get_info(fruit_states)
+
+        # update fruit types
+        self.cur_fruit_type = self.next_fruit_type
+        self.next_fruit_type = self._gen_next_fruit_type()
+
         return observation, reward, terminated, truncated, info
 
     def render(self):
