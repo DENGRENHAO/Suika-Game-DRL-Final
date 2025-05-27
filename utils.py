@@ -17,7 +17,7 @@ def set_seeds(seed):
     torch.backends.cudnn.benchmark = False
 
 
-def make_env(env_name, seed):
-    env = gym.make(env_name, render_mode="rgb_array", seed=seed)
+def make_env(env_name, seed, **kwargs):
+    env = gym.make(env_name, render_mode="rgb_array", seed=seed, **kwargs)
     env = CoordSizeToImage(env=env)
     return env
