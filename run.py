@@ -31,7 +31,7 @@ for i in range(1):
         s, r, done, _, _ = env.step([np.random.rand()])
         score += r
         for board in s["boards"]:
-            img = board.transpose(1, 2, 0)
+            img = np.expand_dims(board.transpose(0, 1), -1)
             img = np.transpose(np.concat([img] * 3, -1), (1, 0, 2))
             pygame.surfarray.pixels3d(screen)[:, :, :] = img
             pygame.display.flip()

@@ -335,19 +335,21 @@ class SuikaEnv(gym.Env):
         self.current_step += 1
 
         # Process action (map from [0,1] to screen width with padding)
-        x_min = PAD[0] + RADII[self.next_fruit_type] + WALL_THICKNESS // 2
+        x_min = PAD[0] + RADII[self.cur_fruit_type] + WALL_THICKNESS // 2
         x_max = WIDTH - x_min
         x_pos = x_min + action[0] * (x_max - x_min)
 
         # Create and drop new particle
-        self.cur_fruit_type = self.next_fruit_type
-        self.next_fruit_type = self._gen_next_fruit_type()
         cur_fruit = Fruit(
             (x_pos, PAD[1] // 2),
             self.cur_fruit_type,
             self.space,
         )
         self.fruits.append(cur_fruit)
+
+        # update fruit types
+        self.cur_fruit_type = self.next_fruit_type
+        self.next_fruit_type = self._gen_next_fruit_type()
 
         # Run physics for a fixed amount of time
         boards = []
