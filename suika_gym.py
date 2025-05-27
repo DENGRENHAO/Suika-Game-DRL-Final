@@ -44,7 +44,7 @@ POINTS = [1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66]
 DAMPING = 0.2  # Lower to decrease the time it takes for space to be stable
 FRUIT_COLLECTION_TYPE = 1
 
-FPS = 120
+FPS = 200
 PHYSICS_STEP_SIZE = 0.01
 GAMEOVER_MIN_VEC = 0.1
 
@@ -82,7 +82,7 @@ class SuikaEnv(gym.Env):
             raise ValueError("num_frames > FPS")
 
         if FPS % n_frames != 0:
-            raise ValueError("FPS % num_frames != 0")
+            raise ValueError(f"FPS ({FPS}) % n_frames ({n_frames}) != 0")
 
         if level not in [1, 2, 3, 4]:
             raise ValueError(f"Invalid level: {self.level}. Must be 1, 2, 3, or 4.")
@@ -335,19 +335,21 @@ class SuikaEnv(gym.Env):
         self.current_step += 1
 
         # Process action (map from [0,1] to screen width with padding)
-        x_min = PAD[0] + RADII[self.next_fruit_type] + WALL_THICKNESS // 2
+        x_min = PAD[0] + RADII[self.cur_fruit_type] + WALL_THICKNESS // 2
         x_max = WIDTH - x_min
         x_pos = x_min + action[0] * (x_max - x_min)
 
         # Create and drop new particle
-        self.cur_fruit_type = self.next_fruit_type
-        self.next_fruit_type = self._gen_next_fruit_type()
         cur_fruit = Fruit(
             (x_pos, PAD[1] // 2),
             self.cur_fruit_type,
             self.space,
         )
         self.fruits.append(cur_fruit)
+
+        # update fruit types
+        self.cur_fruit_type = self.next_fruit_type
+        self.next_fruit_type = self._gen_next_fruit_type()
 
         # Run physics for a fixed amount of time
         boards = []
