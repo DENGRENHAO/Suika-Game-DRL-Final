@@ -59,6 +59,14 @@ GAME_IDS = {
 FruitState = namedtuple("FruitState", ["pos", "radius", "type"])
 
 
+def sample_evenly_spaced_frames(n, total):
+    if n == 1:
+        return [total - 1]  # Only last frame if n == 1, as per special case
+
+    # Compute evenly spaced indices, first is 0
+    return [round(i * (total - 1) / (n - 1)) for i in range(n)]
+
+
 class SuikaEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
 
@@ -90,7 +98,7 @@ class SuikaEnv(gym.Env):
         self.render_fps = render_fps
         self.level = level
         self.n_frames = n_frames  # Number of intermediate frames to collect
-        self.frame_interval = FPS // n_frames
+        self.frame_capture_steps = sample_evenly_spaced_frames(n_frames, FPS)
         self.render_interval = 4
 
         # Image size for image-based representation (levels 3 and 4)
@@ -358,7 +366,7 @@ class SuikaEnv(gym.Env):
         for t in range(FPS):
             self.space.step(PHYSICS_STEP_SIZE)
 
-            if t % self.frame_interval == 0:
+            if t in self.frame_capture_steps:
                 boards.append(self._get_board())
 
             # Render during physics simulation if render_mode is set
