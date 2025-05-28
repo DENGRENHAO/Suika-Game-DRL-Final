@@ -4,6 +4,7 @@
 
 - All 0: 500-600
 - random [0,1]: 681.42
+- Rule-based: 1301.35 (mean) +-371.98 (std)
 
 ## Pre-requisites
 
