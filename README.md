@@ -1,5 +1,71 @@
 # Suika Game - DRL Final Project
 
+## LightZero - Sampled AlphaZero
+### Pre-requisites
+```
+cd extern/LightZero
+pip3 install -e .
+```
+
+### File Structure for Suika Game
+- `extern/LightZero/zoo/suika/`
+  - `config/suika_sampled_alphazero_config.py`: Configuration and the running script for Suika game.
+  - `envs/suika_env.py`: Environment definition for Suika game.
+
+
+### Start training
+```bash
+cd extern/LightZero/
+python3 -u zoo/suika/config/suika_sampled_alphazero_config.py
+```
+
+### Problems
+1. LightZero only provide full support for MuZero, EfficientZero, and Sampled EfficientZero. 
+2. For Sampled AlphaZero, it only supports discrete action space.
+
+In detail, in `extern/LightZero/lzero/mcts/ptree/ptree_az_sampled.py`:
+1. line 246, in get_next_action: self._simulate(self.root, self.simulate_env, policy_value_func)
+2. line 345, in _simulate: node.update_recursive(leaf_value, simulate_env.battle_mode_in_simulation_env)
+3. line 104, in update_recursive: self.update(leaf_value)
+4. line 77, in update: self._value_sum += value
+  TypeError: unsupported operand type(s) for +=: 'int' and 'NoneType'
+5. This is because line 321: leaf_value = self._expand_leaf_node(node, simulate_env, policy_value_func)
+But in def _expand_leaf_node(...), what does this mean:
+```python
+if self.continuous_action_space:
+    pass
+```
+SO, how to handle continuous action space in Sampled AlphaZero?
+
+Error Traceback:
+```
+Traceback (most recent call last):
+  File "/data/ddeng691/NTU_Courses/113_2/DRL/Final_Project/Suika-Game-DRL-Final/extern/LightZero/zoo/suika/config/suika_sampled_alphazero_config.py", line 110, in <module>
+    train_alphazero([main_config, create_config], seed=0, max_env_step=max_env_step)
+  File "/data/ddeng691/NTU_Courses/113_2/DRL/Final_Project/Suika-Game-DRL-Final/extern/LightZero/lzero/entry/train_alphazero.py", line 119, in train_alphazero
+    new_data = collector.collect(train_iter=learner.train_iter, policy_kwargs=collect_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/ddeng691/NTU_Courses/113_2/DRL/Final_Project/Suika-Game-DRL-Final/extern/LightZero/lzero/worker/alphazero_collector.py", line 22
+1, in collect
+    policy_output = self._policy.forward(obs_, temperature)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/ddeng691/anaconda3/envs/py312/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/data/ddeng691/NTU_Courses/113_2/DRL/Final_Project/Suika-Game-DRL-Final/extern/LightZero/lzero/policy/alphazero.py", line 267, in _for
+ward_collect
+    action, mcts_probs, root = self._collect_mcts.get_next_action(state_config_for_simulation_env_reset, self._policy_value_fn, self.collect_mcts_temperature, True)
+  File "/data/ddeng691/NTU_Courses/113_2/DRL/Final_Project/Suika-Game-DRL-Final/extern/LightZero/lzero/mcts/ptree/ptree_az_sampled.py", line 246, in get_next_action
+    self._simulate(self.root, self.simulate_env, policy_value_func)
+  File "/data/ddeng691/NTU_Courses/113_2/DRL/Final_Project/Suika-Game-DRL-Final/extern/LightZero/lzero/mcts/ptree/ptree_az_sampled.py", line 345, in _simulate
+    node.update_recursive(leaf_value, simulate_env.battle_mode_in_simulation_env)
+  File "/data/ddeng691/NTU_Courses/113_2/DRL/Final_Project/Suika-Game-DRL-Final/extern/LightZero/lzero/mcts/ptree/ptree_az_sampled.py", line 104, in update_recursive
+    self.update(leaf_value)
+  File "/data/ddeng691/NTU_Courses/113_2/DRL/Final_Project/Suika-Game-DRL-Final/extern/LightZero/lzero/mcts/ptree/ptree_az_sampled.py", line 77, in update
+    self._value_sum += value
+TypeError: unsupported operand type(s) for +=: 'int' and 'NoneType'
+```
+
 ## Scores
 
 - All 0: 500-600
