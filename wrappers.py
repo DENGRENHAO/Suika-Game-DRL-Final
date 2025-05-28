@@ -99,7 +99,7 @@ class CoordSizeToImage(gym.ObservationWrapper):
 
         observation["boards"] = (
             np.array(images)
-            .reshape(self.n_frames, 1, *self.image_size)  # [B,C,H,W]
+            .reshape(self.n_frames, *self.image_size)  # [B,H,W]
             .astype(np.uint8)
         )
         # observation["boards"] = (

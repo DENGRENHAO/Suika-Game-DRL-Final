@@ -288,13 +288,13 @@ def eval_actor(env, agent, episode=20):
     eval_scores = []
     for _ in range(episode):
         state, _ = env.reset()
-        state['boards'] = state['boards'][0]
+        state['boards'] = torch.tensor(state['boards'][0])
         done = False
         score = 0
         while not done:
             action = agent.select_action(state['boards'], state['cur_fruit'], deterministic=True)
             state, reward, done, truncated, _ = env.step(action)
-            state['boards'] = state['boards'][0]
+            state['boards'] = torch.tensor(state['boards'][0])
             score += reward
             done = done or truncated
         eval_scores.append(score)
@@ -312,7 +312,7 @@ if __name__ == "__main__":
 
     for episode in tqdm(range(NUM_EPISODES)):
         state, _ = env.reset()
-        state['boards'] = state['boards'][0]
+        state['boards'] = torch.tensor(state['boards'][0])
         score = 0
         done = False
         while not done:
@@ -322,7 +322,7 @@ if __name__ == "__main__":
                 action = agent.select_action(state['boards'], state['cur_fruit'])
 
             next_state, reward, done, truncated, _ = env.step(action)
-            next_state['boards'] = next_state['boards'][0]
+            next_state['boards'] = torch.tensor(next_state['boards'][0])
             agent.replay_buffer.add(
                 {
                     "state": state['boards'],
