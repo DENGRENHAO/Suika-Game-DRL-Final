@@ -19,21 +19,19 @@ import numpy as np
 import datetime
 from collections import deque
 from feature_extractor import MyCombinedExtractor
+from model import model
+from config import config as cfg
+
+
 
 # import cv2
 
-config = {
-    "env_name": "suika-game-l1-v0",
-    "policy_type": "MultiInputPolicy",
-    "total_timesteps": 300000,
-    "buffer_size": 500000,
-    "batch_size": 256,
-    "learning_rate": 2e-4,
-}
+
+config = cfg["TQC"]
 
 
 class WandbLoggingCallback(BaseCallback):
-    def __init__(self, eval_env, log_interval=500, verbose=0):
+    def __init__(self, eval_env, log_interval=1000, verbose=0):
         super().__init__(verbose)
         self.eval_env = eval_env
         self.interval = log_interval
@@ -95,24 +93,16 @@ def make_env():
 
 if __name__ == "__main__":
     # env = make_env()
-    vec_env = SubprocVecEnv([lambda: Monitor(make_env()) for _ in range(10)])
+    vec_env = SubprocVecEnv([lambda: Monitor(make_env()) for _ in range(config['env_num'])])
 
     policy_kwargs = dict(
         features_extractor_class=MyCombinedExtractor,
     )
 
-    model = SAC(
-        config["policy_type"],
-        vec_env,
-        policy_kwargs=policy_kwargs,
-        verbose=1,
-        buffer_size=config["buffer_size"],
-        batch_size=config["batch_size"],
-        learning_rate=config["learning_rate"],
-    )
+    model = model(config, vec_env, policy_kwargs)
 
     run = wandb.init(
-        project="suika-sb3-sac",
+        project=f"suika-{config['model']}",
         name=datetime.datetime.now().strftime("%m-%d_%H-%M"),
         config=config,
         settings=wandb.Settings(x_disable_stats=True),
@@ -124,5 +114,4 @@ if __name__ == "__main__":
         progress_bar=True,
         callback=WandbLoggingCallback(make_env()),
     )
-    # model.save("sac_model")
     run.finish()

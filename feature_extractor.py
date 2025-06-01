@@ -13,13 +13,13 @@ class MyCombinedExtractor(BaseFeaturesExtractor):
         n_channels = frames_shape[0]  # n_frames
 
         # CNN to process each frame
-        self.cnn = nn.Sequential(
-            nn.Conv2d(n_channels, 32, kernel_size=8, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Flatten(),  # start_dim=1 by default
-        )
+        # self.cnn = nn.Sequential(
+        #     nn.Conv2d(n_channels, 32, kernel_size=8, stride=4),
+        #     nn.ReLU(),
+        #     nn.Conv2d(32, 64, kernel_size=4, stride=2),
+        #     nn.ReLU(),
+        #     nn.Flatten(),  # start_dim=1 by default
+        # )
         self.cnn = nn.Sequential(
             nn.Conv2d(n_channels, 32, kernel_size=8, stride=4),
             nn.ReLU(),
