@@ -9,6 +9,23 @@ project(mcts_alphazero VERSION 1.0)
 # This is required for embedding Python in the project
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 
+# --- Integrate pybind11 using FetchContent ---
+# This will download pybind11 if it's not already available in the build tree.
+include(FetchContent)
+
+# Define the content to fetch: pybind11 from its GitHub repository
+FetchContent_Declare(
+  pybind11
+  GIT_REPOSITORY https://github.com/pybind/pybind11.git
+  GIT_TAG        v2.12.0 # Use a specific, stable version tag (e.g., v2.12.0 or latest)
+  GIT_SHALLOW    TRUE
+)
+
+# Populate the content. This will download pybind11 into the build directory
+# and make its CMake targets available.
+FetchContent_MakeAvailable(pybind11)
+# --- End pybind11 integration ---
+
 # Add pybind11 as a subdirectory,
 # so that its build files are generated alongside the current project.
 # This is necessary because the current project depends on pybind11

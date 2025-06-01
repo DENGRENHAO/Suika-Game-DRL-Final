@@ -307,7 +307,7 @@ class SuikaEnv(gym.Env):
     def __repr__(self) -> str:
         return "LightZero Suika Env"
     
-    def reset(self, start_player_index: int = 0, init_state: np.ndarray = None) -> dict:
+    def reset(self, start_player_index=0, init_state=None, katago_policy_init=False, katago_game_state=None):
         """Reset the environment to initial state"""
         super().reset()
 

@@ -9,7 +9,7 @@
 
 # Navigate to the project directory.
 # ========= NOTE: PLEASE MODIFY THE FOLLOWING DIRECTORY TO YOUR OWN. =========
-cd /YOUR_LightZero_DIR/LightZero/lzero/mcts/ctree/ctree_alphazero/ || exit
+cd /data/ddeng691/NTU_Courses/113_2/DRL/Final_Project/Suika-Game-DRL-Final/extern/LightZero/lzero/mcts/ctree/ctree_alphazero/ || exit
 
 # Create a new directory named "build." The build directory is where the compiled files will be stored.
 mkdir -p build
@@ -18,7 +18,8 @@ mkdir -p build
 cd build || exit
 
 # Run cmake on the parent directory with the specified architecture
-cmake .. -DCMAKE_OSX_ARCHITECTURES="arm64"
+cmake .. -DCMAKE_OSX_ARCHITECTURES="arm64" \
+    -DPython3_ROOT_DIR="/data/ddeng691/anaconda3/envs/py312"
 
 # Run the "make" command to compile the project
 make
