@@ -1,51 +1,46 @@
+import os
 import numpy as np
-import tkinter as tk
-from suika_gym import SuikaEnv
 import imageio
-import time
-import pygame
-from wrappers import CoordSizeToImage
+import gymnasium as gym
+from suika_gym import SuikaEnv
 
-pygame.init()
-window_size = (96, 96)
-screen = pygame.display.set_mode(window_size)
-pygame.display.set_caption("Live Image")
-clock = pygame.time.Clock()
+def run_and_save_gif(
+    env: gym.Env,
+    num_steps: int,
+    gif_path: str,
+    fps: int = 30,
+    seed: int = None
+):
+    if seed is not None:
+        np.random.seed(seed)
+        env.reset(seed=seed)
 
-np.random.seed(0)
-env = SuikaEnv(level=1)  # render_mode="human"
-env = CoordSizeToImage(env)
+    obs, info = env.reset()
+    frames = []
 
-boards = []
-step_cnt = 0
-start = time.time()
-scores = []
+    for img in obs["boards"]:
+        frames.append(img)
 
-for i in range(1):
-    s, _ = env.reset()
-    # frames.append(s["image"])
+    for step in range(num_steps):
+        action = np.random.rand(1).astype(np.float32)
 
-    done = False
-    score = 0
-    while not done:
-        s, r, done, _, _ = env.step([np.random.rand()])
-        score += r
-        for board in s["boards"]:
-            img = board.transpose(1, 2, 0)
-            img = np.transpose(np.concat([img] * 3, -1), (1, 0, 2))
-            pygame.surfarray.pixels3d(screen)[:, :, :] = img
-            pygame.display.flip()
-            clock.tick(30)
-        step_cnt += 1
+        obs, reward, terminated, truncated, info = env.step(action)
 
-    print(score)
-    scores.append(score)
+        for img in obs["boards"]:
+            frames.append(img)
 
-end = time.time()
-print(scores)
-print(np.mean(scores))
-print("Time taken:", end - start)
-print("Steps taken:", step_cnt)
-print("FPS:", step_cnt / (end - start))
+        if terminated:
+            print(f"第 {step+1} 步時遊戲結束 (terminated)。")
+            break
 
-# imageio.mimsave("game.gif", frames, fps=1)
+    os.makedirs(os.path.dirname(gif_path) or ".", exist_ok=True)
+
+    imageio.mimsave(gif_path, frames, fps=fps, loop = 0)
+    print(f"GIF 已儲存到: {gif_path}")
+
+
+if __name__ == "__main__":
+    env = SuikaEnv(level=4)
+    run_and_save_gif(env, num_steps=200, gif_path="suika_demo.gif", fps=120, seed=42)
+
+    env.close()

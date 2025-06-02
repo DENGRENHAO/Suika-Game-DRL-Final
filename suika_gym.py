@@ -63,7 +63,7 @@ class SuikaEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
 
     def __init__(
-        self, n_frames=2, level=1, render_mode="rgb_array", render_fps=200, seed=None
+        self, n_frames=8, level=1, render_mode="rgb_array", render_fps=200, seed=None
     ):
         """
         Initialize the Suika game environment
@@ -449,11 +449,21 @@ class SuikaEnv(gym.Env):
         surface.fill(BG_COLOR)
 
         # Draw particles - optimization: only draw active ones
+        # for f in fruits:
+        #     if human:
+        #         f.draw(surface, font=idfont)
+        #     else:
+        #         Fruit.draw_state(surface, **f._asdict())
         for f in fruits:
             if human:
                 f.draw(surface, font=idfont)
             else:
-                Fruit.draw_state(surface, **f._asdict())
+                # 如果 f 是 Fruit，先取 f.state 再轉成 dict；如果已經是 FruitState，就直接用 f._asdict()
+                if isinstance(f, Fruit):
+                    data = f.state._asdict()
+                else:
+                    data = f._asdict()
+                Fruit.draw_state(surface, **data)
 
         # Draw walls (after particles due to elasticity)
         for wall in walls:

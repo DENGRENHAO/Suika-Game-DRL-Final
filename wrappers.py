@@ -154,3 +154,6 @@ class CoordSizeToImage(gym.Wrapper):
         self.prev_min_depth = self.max_depth
         self.prev_mean_depth = self.max_depth
         return obs, info
+
+    def render_states(self, list):
+        return self.env.render_states(list)
