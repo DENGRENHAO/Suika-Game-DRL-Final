@@ -40,27 +40,28 @@ config = {
             "train/critic_loss",
         ],
         "seed": 42,
+        "model": "TD3",
+        "env_num" : 32
     },
     "SAC":{
         "env_name": "suika-game-l1-v0",
         "policy_type": "MultiInputPolicy",
-        "total_timesteps": 600000,
+        "total_timesteps": 3000000,
         "buffer_size": 50000,
         "batch_size": 128,
         "learning_rate": 3e-4,
         "learning_starts": 10000,
-        "log_entries": [
-            "train/actor_loss",
-            "train/critic_loss",
-            "train/ent_coef",
-        ],
         "seed": 42,
+        "model": "SAC",
+        "env_num" : 32
     },
     "PPO":{
         "env_name": "suika-game-l1-v0",
         "policy_type": "MultiInputPolicy",
-        "total_timesteps": 2000000,
+        "total_timesteps": 3000000,
         "batch_size": 64,
         "seed": 42,
+        "model": "PPO",
+        "env_num" : 32
     },
 }

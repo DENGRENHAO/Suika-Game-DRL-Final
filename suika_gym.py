@@ -63,7 +63,7 @@ class SuikaEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
 
     def __init__(
-        self, n_frames=8, level=1, render_mode="rgb_array", render_fps=200, seed=None
+        self, n_frames=4, level=1, render_mode="rgb_array", render_fps=200, seed=None
     ):
         """
         Initialize the Suika game environment

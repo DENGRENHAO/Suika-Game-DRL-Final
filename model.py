@@ -34,7 +34,7 @@ def model(config, env, policy_kwargs):
             policy_kwargs=policy_kwargs,
             batch_size=config["batch_size"],
             seed=config["seed"],
-        ),
+        )
 
     elif config["model"] == "TD3":
         return TD3(
@@ -47,20 +47,21 @@ def model(config, env, policy_kwargs):
             learning_rate=config["learning_rate"],
             learning_starts=config["learning_starts"],
             seed=config["seed"],
-        ),
+        )
 
     elif config["model"] == "SAC":
+        print("building SAC model")
         return SAC(
             config["policy_type"],
             env,
             policy_kwargs=policy_kwargs,
-            verbose=1,
+            # verbose=1,
             buffer_size=config["buffer_size"],
             batch_size=config["batch_size"],
             learning_rate=config["learning_rate"],
             learning_starts=config["learning_starts"],
             seed=config["seed"],
-        ),
+        )
 
     elif config["model"] == "PPO":
         return PPO(

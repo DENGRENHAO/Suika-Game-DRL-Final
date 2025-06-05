@@ -27,7 +27,7 @@ from config import config as cfg
 # import cv2
 
 
-config = cfg["TQC"]
+config = cfg["PPO"]
 
 
 class WandbLoggingCallback(BaseCallback):
@@ -100,6 +100,7 @@ if __name__ == "__main__":
     )
 
     model = model(config, vec_env, policy_kwargs)
+    print(model)
 
     run = wandb.init(
         project=f"suika-{config['model']}",
